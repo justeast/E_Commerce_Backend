@@ -1,14 +1,10 @@
 from datetime import datetime, timezone
-from typing import List, TYPE_CHECKING
-
+from typing import List
 from sqlalchemy import Boolean, Integer, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.rbac import user_role
-
-if TYPE_CHECKING:
-    from app.models.rbac import Role
 
 
 class User(Base):

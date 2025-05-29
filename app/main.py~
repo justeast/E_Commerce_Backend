@@ -14,10 +14,10 @@ async def lifespan(_app: FastAPI):
     """应用生命周期事件处理器"""
     # 启动时执行
     import os
-
+    
     # 检查是否需要初始化数据库和RBAC
     init_required = os.environ.get("INIT_DB_AND_RBAC", "false").lower() == "true"
-
+    
     if init_required:
         # 初始化数据库
         await init_db()
@@ -26,7 +26,7 @@ async def lifespan(_app: FastAPI):
         logging.info("数据库和RBAC系统初始化完成")
     else:
         logging.info("跳过数据库和RBAC系统初始化")
-
+    
     yield
     # 关闭时执行
     await close_db_connection()
