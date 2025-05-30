@@ -88,7 +88,7 @@ DEFAULT_ROLES = [
             "product:list", "product:read", "product:create", "product:update", "product:delete",
             "category:list", "category:read", "category:create", "category:update", "category:delete",
             "tag:list", "tag:read", "tag:create", "tag:update", "tag:delete",
-            "review:list", "review:read", "review:create", "review:update", "review:delete", "review:manage_all", "review:reply", "review:stats"
+            "review:list", "review:read", "review:delete", "review:manage_all", "review:reply", "review:stats"
         ]
     },
     {

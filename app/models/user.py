@@ -9,6 +9,7 @@ from app.models.rbac import user_role
 
 if TYPE_CHECKING:
     from app.models.rbac import Role
+    from app.models.product_review import ProductReview, ReviewReply
 
 
 class User(Base):
@@ -29,4 +30,10 @@ class User(Base):
     # 关联
     roles: Mapped[List["Role"]] = relationship(
         "Role", secondary=user_role, back_populates="users"
+    )
+    product_reviews: Mapped[List["ProductReview"]] = relationship(
+        "ProductReview", back_populates="user", cascade="all, delete-orphan"
+    )
+    review_replies: Mapped[List["ReviewReply"]] = relationship(
+        "ReviewReply", back_populates="user", cascade="all, delete-orphan"
     )

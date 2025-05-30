@@ -8,6 +8,7 @@ from app.db.base import Base
 # 使用TYPE_CHECKING避免循环导入
 if TYPE_CHECKING:
     from app.models.product_attribute import SKU
+    from app.models.product_review import ProductReview
 
 # 商品-标签关联表（多对多）
 product_tag = Table(
@@ -121,4 +122,9 @@ class Product(Base):
         back_populates="product",
         cascade="all, delete-orphan",
         lazy="selectin"
+    )
+    reviews: Mapped[List["ProductReview"]] = relationship(
+        "ProductReview",
+        back_populates="product",
+        cascade="all, delete-orphan"
     )

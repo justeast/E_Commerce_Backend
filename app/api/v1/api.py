@@ -1,7 +1,8 @@
 """api路由配置"""
 
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, rbac, categories, tags, products, attributes, attribute_values, skus
+from app.api.v1.endpoints import users, auth, rbac, categories, tags, products, attributes, attribute_values, skus, \
+    product_reviews
 
 api_router = APIRouter()
 
@@ -31,3 +32,6 @@ api_router.include_router(attribute_values.router, prefix="/attribute-values", t
 
 # 添加SKU路由
 api_router.include_router(skus.router, prefix="/skus", tags=["skus"])
+
+# 添加商品评价路由
+api_router.include_router(product_reviews.router, prefix="/product-reviews", tags=["product_reviews"])
