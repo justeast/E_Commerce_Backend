@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash
 from app.db.session import get_db
 from app.models.user import User
+from app.models.rbac import Role
 from app.schemas.user import UserCreate, UserResponse
 
 router = APIRouter()
@@ -42,4 +44,25 @@ async def create_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # 为新用户分配"普通用户"角色
+    # 查询普通用户角色
+    result = await db.execute(select(Role).where(Role.name == "普通用户"))
+    normal_user_role = result.scalars().first()
+
+    if normal_user_role:
+        # 创建关联关系
+        # 使用SQL直接插入关联记录，避免懒加载问题
+        from sqlalchemy import text
+        await db.execute(
+            text("INSERT INTO user_role (user_id, role_id) VALUES (:user_id, :role_id)"),
+            {"user_id": user.id, "role_id": normal_user_role.id}
+        )
+        await db.commit()
+
+        # 重新加载用户，确保关系被正确加载
+        user_query = select(User).where(User.id == user.id).options(selectinload(User.roles))
+        result = await db.execute(user_query)
+        user = result.scalars().first()
+
     return user
