@@ -1,9 +1,13 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Integer, String, DateTime, ForeignKey, Boolean, Table, Column, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+
+# 使用TYPE_CHECKING避免循环导入
+if TYPE_CHECKING:
+    from app.models.product_attribute import SKU
 
 # 商品-标签关联表（多对多）
 product_tag = Table(
@@ -110,4 +114,11 @@ class Product(Base):
         "Tag",
         secondary=product_tag,
         back_populates="products"
+    )
+    # 商品SKU（一对多）
+    skus: Mapped[List["SKU"]] = relationship(
+        "SKU",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        lazy="selectin"
     )
