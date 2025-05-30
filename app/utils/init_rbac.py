@@ -35,12 +35,27 @@ DEFAULT_PERMISSIONS = [
     {"name": "更新权限", "code": "permission:update", "description": "更新权限信息"},
     {"name": "删除权限", "code": "permission:delete", "description": "删除权限"},
 
-    # 商品管理权限（预留）
+    # 商品管理权限
+    {"name": "商品管理", "code": "product_manage", "description": "商品管理总权限"},
     {"name": "查看商品列表", "code": "product:list", "description": "查看所有商品的列表"},
     {"name": "查看商品详情", "code": "product:read", "description": "查看商品的详细信息"},
     {"name": "创建商品", "code": "product:create", "description": "创建新商品"},
     {"name": "更新商品", "code": "product:update", "description": "更新商品信息"},
     {"name": "删除商品", "code": "product:delete", "description": "删除商品"},
+
+    # 商品分类管理权限
+    {"name": "查看分类列表", "code": "category:list", "description": "查看所有商品分类的列表"},
+    {"name": "查看分类详情", "code": "category:read", "description": "查看商品分类的详细信息"},
+    {"name": "创建分类", "code": "category:create", "description": "创建新商品分类"},
+    {"name": "更新分类", "code": "category:update", "description": "更新商品分类信息"},
+    {"name": "删除分类", "code": "category:delete", "description": "删除商品分类"},
+
+    # 商品标签管理权限
+    {"name": "查看标签列表", "code": "tag:list", "description": "查看所有商品标签的列表"},
+    {"name": "查看标签详情", "code": "tag:read", "description": "查看商品标签的详细信息"},
+    {"name": "创建标签", "code": "tag:create", "description": "创建新商品标签"},
+    {"name": "更新标签", "code": "tag:update", "description": "更新商品标签信息"},
+    {"name": "删除标签", "code": "tag:delete", "description": "删除商品标签"},
 ]
 
 # 默认角色列表
@@ -58,12 +73,18 @@ DEFAULT_ROLES = [
     {
         "name": "商品管理员",
         "description": "负责商品管理的管理员",
-        "permissions": ["product:list", "product:read", "product:create", "product:update", "product:delete"]
+        "permissions": [
+            "product_manage",
+            "product:list", "product:read", "product:create", "product:update", "product:delete",
+            "category:list", "category:read", "category:create", "category:update", "category:delete",
+            "tag:list", "tag:read", "tag:create", "tag:update", "tag:delete"
+        ]
     },
     {
         "name": "普通用户",
         "description": "普通用户角色",
-        "permissions": []  # 无特殊权限
+        "permissions": ["product:list", "product:read", "category:list", "category:read", "tag:list", "tag:read"]
+        # 只有查看权限
     }
 ]
 

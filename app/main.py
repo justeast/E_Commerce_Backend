@@ -15,6 +15,9 @@ async def lifespan(_app: FastAPI):
     # 启动时执行
     import os
 
+    # 直接设置环境变量为true，强制执行初始化(初始化一次就好)
+    # os.environ["INIT_DB_AND_RBAC"] = "true"
+
     # 检查是否需要初始化数据库和RBAC
     init_required = os.environ.get("INIT_DB_AND_RBAC", "false").lower() == "true"
 

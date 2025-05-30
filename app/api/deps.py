@@ -10,9 +10,11 @@ from jwt.exceptions import PyJWTError
 import jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 from app.core.security import SECRET_KEY, ALGORITHM
 from app.db.session import get_db
+from app.models.rbac import Role
 from app.models.user import User
 from app.schemas.auth import TokenData
 
@@ -39,7 +41,8 @@ async def get_current_user(
     except PyJWTError:
         raise credentials_exception
 
-    result = await db.execute(select(User).where(User.id == token_data.sub))
+    # 预加载用户角色，避免后续惰性加载
+    result = await db.execute(select(User).where(User.id == token_data.sub).options(selectinload(User.roles)))
     user = result.scalars().first()
 
     if user is None:
@@ -69,11 +72,18 @@ def has_permission(required_permission: str):
             current_user: Annotated[User, Depends(get_current_user)],
             db: AsyncSession = Depends(get_db)
     ) -> User:
-        # 获取用户的所有角色
-        user_with_roles = await db.execute(
-            select(User).where(User.id == current_user.id)
+        # 获取用户的所有角色和权限（使用selectinload预加载关系）
+        user_query = select(User).where(User.id == current_user.id).options(
+            selectinload(User.roles).selectinload(Role.permissions)
         )
-        user = user_with_roles.scalars().first()
+        result = await db.execute(user_query)
+        user = result.scalars().first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在",
+            )
 
         # 检查用户的角色是否有所需权限
         has_required_permission = False
@@ -91,7 +101,7 @@ def has_permission(required_permission: str):
                 detail="权限不足",
             )
 
-        return current_user
+        return user
 
     return permission_dependency
 
@@ -105,11 +115,18 @@ def has_role(required_role: str):
             current_user: Annotated[User, Depends(get_current_user)],
             db: AsyncSession = Depends(get_db)
     ) -> User:
-        # 获取用户的所有角色
-        user_with_roles = await db.execute(
-            select(User).where(User.id == current_user.id)
+        # 获取用户的所有角色（使用selectinload预加载关系）
+        user_query = select(User).where(User.id == current_user.id).options(
+            selectinload(User.roles)
         )
-        user = user_with_roles.scalars().first()
+        result = await db.execute(user_query)
+        user = result.scalars().first()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="用户不存在",
+            )
 
         # 检查用户是否有所需角色
         has_required_role = False
@@ -124,6 +141,6 @@ def has_role(required_role: str):
                 detail="角色权限不足",
             )
 
-        return current_user
+        return user
 
     return role_dependency
