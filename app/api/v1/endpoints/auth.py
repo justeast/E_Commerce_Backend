@@ -1,17 +1,21 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 import jwt
+from typing import Optional
 
 from app.core.security import (
     verify_password,
     create_access_token,
     create_refresh_token,
     decode_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    add_token_to_blacklist,
+    is_token_blacklisted
 )
+from app.core.redis_client import get_redis_pool
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import Token, Login, RefreshToken
@@ -57,12 +61,21 @@ async def login_for_access_token(
 @router.post("/refresh", response_model=Token)
 async def refresh_access_token(
         refresh_token_data: RefreshToken,
-        db: AsyncSession = Depends(get_db)
+        db: AsyncSession = Depends(get_db),
+        redis_pool=Depends(get_redis_pool)
 ):
     """
     使用刷新令牌获取新的访问令牌
     """
     try:
+        # 检查刷新令牌是否在黑名单中
+        if await is_token_blacklisted(refresh_token_data.refresh_token, redis_pool):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="刷新令牌已失效，请重新登录",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         # 解码刷新令牌
         payload = decode_token(refresh_token_data.refresh_token)
 
@@ -113,5 +126,50 @@ async def refresh_access_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="刷新令牌已过期或无效",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+
+@router.post("/logout", status_code=status.HTTP_200_OK)
+async def logout(
+        authorization: Optional[str] = Header(None),
+        refresh_token: Optional[RefreshToken] = None,
+        redis_pool=Depends(get_redis_pool)
+):
+    """
+    退出登录
+
+    将当前的访问令牌和刷新令牌（如果提供）添加到黑名单中，使它们失效
+    """
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="未提供授权信息",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        # 从授权头中提取访问令牌
+        scheme, access_token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的认证方案",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        # 将访问令牌添加到Redis黑名单
+        await add_token_to_blacklist(access_token, redis_pool)
+
+        # 如果提供了刷新令牌，也将其添加到Redis黑名单
+        if refresh_token:
+            await add_token_to_blacklist(refresh_token.refresh_token, redis_pool)
+
+        return {"detail": "退出登录成功"}
+
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="无效的授权信息格式",
             headers={"WWW-Authenticate": "Bearer"},
         )

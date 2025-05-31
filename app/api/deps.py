@@ -12,7 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from app.core.security import SECRET_KEY, ALGORITHM
+from app.core.security import SECRET_KEY, ALGORITHM, is_token_blacklisted
+from app.core.redis_client import get_redis_pool
 from app.db.session import get_db
 from app.models.rbac import Role
 from app.models.user import User
@@ -22,11 +23,21 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
 async def get_current_user(
-        token: Annotated[str, Depends(oauth2_scheme)], db: AsyncSession = Depends(get_db)
+        token: Annotated[str, Depends(oauth2_scheme)],
+        db: AsyncSession = Depends(get_db),
+        redis_pool=Depends(get_redis_pool)
 ) -> User:
     """
     获取当前用户
     """
+    # 检查令牌是否在黑名单中
+    if await is_token_blacklisted(token, redis_pool):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="令牌已失效",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="无法验证凭据",
@@ -37,7 +48,17 @@ async def get_current_user(
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-        token_data = TokenData(sub=user_id)
+
+        # 验证令牌类型
+        token_type = payload.get("type")
+        if token_type != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="无效的令牌类型",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        token_data = TokenData(sub=user_id, type=token_type)
     except PyJWTError:
         raise credentials_exception
 
