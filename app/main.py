@@ -7,6 +7,7 @@ from app.api.v1.api import api_router
 from app.db.init_db import init_db
 from app.db.session import close_db_connection
 from app.utils.init_rbac import init_rbac
+from app.utils.elasticsearch_connect import create_product_index, close_elasticsearch_connection, index_exists
 
 
 @asynccontextmanager
@@ -30,9 +31,22 @@ async def lifespan(_app: FastAPI):
     else:
         logging.info("跳过数据库和RBAC系统初始化")
 
+    # 创建Elasticsearch商品索引
+    try:
+        # 检查索引是否已存在
+        if not await index_exists():
+            await create_product_index()
+            logging.info("Elasticsearch商品索引创建成功")
+        else:
+            logging.info("Elasticsearch商品索引已存在，无需创建")
+    except Exception as e:
+        logging.error(f"检查或创建Elasticsearch商品索引失败: {str(e)}")
+
     yield
     # 关闭时执行
     await close_db_connection()
+    await close_elasticsearch_connection()
+
 
 
 app = FastAPI(

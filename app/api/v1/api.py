@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 from app.api.v1.endpoints import users, auth, rbac, categories, tags, products, attributes, attribute_values, skus, \
-    product_reviews
+    product_reviews, product_search
 
 api_router = APIRouter()
 
@@ -35,3 +35,6 @@ api_router.include_router(skus.router, prefix="/skus", tags=["skus"])
 
 # 添加商品评价路由
 api_router.include_router(product_reviews.router, prefix="/product-reviews", tags=["product_reviews"])
+
+# 添加商品搜索路由
+api_router.include_router(product_search.router, prefix="/product-search", tags=["product_search"])

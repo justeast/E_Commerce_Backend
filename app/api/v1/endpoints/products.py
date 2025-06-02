@@ -14,6 +14,7 @@ from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
 )
+from app.utils.product_indexer import index_single_product, update_product_in_index, delete_product_from_index
 
 router = APIRouter()
 
@@ -141,6 +142,13 @@ async def create_product(
     result = await db.execute(query)
     db_product = result.scalars().first()
 
+    # 将新商品添加到Elasticsearch索引
+    try:
+        await index_single_product(db, int(db_product.id))
+    except Exception as e:
+        # 记录错误但不影响API响应
+        print(f"索引商品时出错: {str(e)}")
+
     return db_product
 
 
@@ -207,6 +215,13 @@ async def update_product(
     result = await db.execute(query)
     db_product = result.scalars().first()
 
+    # 更新Elasticsearch索引中的商品
+    try:
+        await update_product_in_index(db, product_id)
+    except Exception as e:
+        # 记录错误但不影响API响应
+        print(f"更新商品索引时出错: {str(e)}")
+
     return db_product
 
 
@@ -225,6 +240,13 @@ async def delete_product(
 
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="商品不存在")
+
+    # 从Elasticsearch索引中删除商品
+    try:
+        await delete_product_from_index(product_id)
+    except Exception as e:
+        # 记录错误但不影响API响应
+        print(f"从索引中删除商品时出错: {str(e)}")
 
     # 删除商品
     await db.delete(product)

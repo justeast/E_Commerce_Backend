@@ -113,3 +113,62 @@ class Product(ProductBase):
 
     class Config:
         from_attributes = True
+
+
+# 搜索相关模型
+class AttributeValuePair(BaseModel):
+    """属性名-值对"""
+    attribute_name: str
+    value: str
+
+
+class SearchTag(BaseModel):
+    """搜索结果中的标签"""
+    id: int
+    name: str
+
+
+class SearchAttribute(BaseModel):
+    """搜索结果中的属性"""
+    name: str
+    values: List[str]
+
+
+class SearchSKU(BaseModel):
+    """搜索结果中的SKU"""
+    id: int
+    name: str
+    code: Optional[str] = None
+    price: float
+    stock: int
+    attribute_values: List[AttributeValuePair] = []
+    highlight_name: Optional[str] = None
+
+
+class ProductSearchResult(BaseModel):
+    """商品搜索结果项"""
+    id: int
+    name: str
+    description: Optional[str] = None
+    price: float
+    stock: int
+    category_id: int
+    category_name: str
+    is_active: bool
+    tags: List[SearchTag] = []
+    attributes: List[SearchAttribute] = []
+    skus: List[SearchSKU] = []
+    avg_rating: float = 0.0
+    review_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+    highlight_name: Optional[str] = None
+    highlight_description: Optional[str] = None
+
+
+class ProductSearchResponse(BaseModel):
+    """商品搜索响应"""
+    total: int
+    page: int
+    size: int
+    items: List[ProductSearchResult] = []
