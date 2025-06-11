@@ -132,36 +132,39 @@ def has_role(required_role: str):
     检查用户是否有特定角色
     """
 
-    async def role_dependency(
-            current_user: Annotated[User, Depends(get_current_user)],
-            db: AsyncSession = Depends(get_db)
-    ) -> User:
-        # 获取用户的所有角色（使用selectinload预加载关系）
-        user_query = select(User).where(User.id == current_user.id).options(
-            selectinload(User.roles)
-        )
-        result = await db.execute(user_query)
-        user = result.scalars().first()
-
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="用户不存在",
-            )
-
-        # 检查用户是否有所需角色
-        has_required_role = False
-        for role in user.roles:
-            if role.name == required_role:
-                has_required_role = True
-                break
-
-        if not has_required_role:
+    async def role_checker(current_user: User = Depends(get_current_active_user)):
+        # 获取用户的所有角色
+        if not current_user.roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="角色权限不足",
+                detail=f"需要角色: {required_role}"
             )
 
-        return user
+        # 检查用户是否有超级管理员角色
+        if "超级管理员" in [role.name for role in current_user.roles]:
+            return current_user
 
-    return role_dependency
+        # 检查用户是否有指定角色
+        if required_role not in [role.name for role in current_user.roles]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"需要角色: {required_role}"
+            )
+        return current_user
+
+    return role_checker
+
+
+async def get_current_active_superuser(
+        current_user: Annotated[User, Depends(get_current_active_user)]
+) -> User:
+    """
+    获取当前超级管理员用户
+    """
+    # 检查用户是否有超级管理员角色
+    if not current_user.roles or "超级管理员" not in [role.name for role in current_user.roles]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要超级管理员权限"
+        )
+    return current_user

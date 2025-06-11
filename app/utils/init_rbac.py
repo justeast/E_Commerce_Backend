@@ -66,6 +66,12 @@ DEFAULT_PERMISSIONS = [
     {"name": "管理所有评价", "code": "review:manage_all", "description": "管理所有用户的评价"},
     {"name": "创建评价回复", "code": "review:reply", "description": "回复商品评价"},
     {"name": "查看评价统计", "code": "review:stats", "description": "查看商品评价统计信息"},
+
+    # 库存管理权限
+    {"name": "查看库存", "code": "inventory:read", "description": "查看库存信息"},
+    {"name": "管理库存", "code": "inventory:manage", "description": "管理库存（入库、出库、调整等）"},
+    {"name": "查看库存预警", "code": "inventory:alert", "description": "查看库存预警信息"},
+    {"name": "管理仓库", "code": "inventory:warehouse", "description": "管理仓库信息"},
 ]
 
 # 默认角色列表
@@ -88,8 +94,15 @@ DEFAULT_ROLES = [
             "product:list", "product:read", "product:create", "product:update", "product:delete",
             "category:list", "category:read", "category:create", "category:update", "category:delete",
             "tag:list", "tag:read", "tag:create", "tag:update", "tag:delete",
-            "review:list", "review:read", "review:create", "review:update", "review:delete", "review:manage_all", "review:reply", "review:stats"
+            "review:list", "review:read", "review:create", "review:update", "review:delete", "review:manage_all",
+            "review:reply", "review:stats"
         ]
+    },
+    {
+        "name": "库存管理员",
+        "description": "负责库存管理",
+        "permissions": ["inventory:read", "inventory:manage", "inventory:alert", "inventory:warehouse",
+                        "product:read","product:list","category:read","category:list"]
     },
     {
         "name": "普通用户",
