@@ -3,7 +3,7 @@ import logging
 
 from sqlalchemy import text
 from app.db.session import engine
-from app.db.base import Base
+from app.db.base_class import Base
 
 # 导入所有模型，确保它们被注册到Base.metadata中
 from app.models.user import User  # noqa

@@ -6,6 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func, and_, desc
 
 from app.api.deps import get_db, has_permission, get_current_user
+from app.core.redis_client import get_redis_pool
 from app.models.user import User
 from app.models.inventory import Warehouse, InventoryItem, InventoryTransaction
 from app.models.product_attribute import SKU
@@ -29,7 +30,8 @@ from app.schemas.inventory import (
     BulkStockAdjustRequest,
     BulkStockTransferRequest
 )
-from app.services.inventory_service import InventoryService
+from app.services.inventory_service import InventoryService, InsufficientStockException, InventoryLockException
+from app.utils.redis_lock import RedisLock
 
 router = APIRouter()
 
@@ -464,48 +466,46 @@ async def stock_in(
 async def reserve_stock(
         *,
         db: AsyncSession = Depends(get_db),
-        reserve_data: StockReserveRequest,
-        _: User = Depends(has_permission("inventory:manage")),
-        current_user: User = Depends(get_current_user)
+        reserve_in: StockReserveRequest,
+        current_user: User = Depends(has_permission("inventory:manage"))
 ):
     """
-    库存预留(下单)，主要是为了配合stock/confirm(支付完成出库)和stock/release(订单取消)使用，也用于：
-    预售、预定等只需要预留库存而不立即出库的场景
+    预留库存
     """
-    inventory_service = InventoryService()
+    redis = await get_redis_pool()
+    lock = RedisLock(redis, f"inventory:sku:{reserve_in.sku_id}", expire_seconds=10)
 
-    # 生成唯一的reference_id
+    if not await lock.acquire():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"无法获取SKU {reserve_in.sku_id} 的库存锁，请稍后再试。"
+        )
+
+    # 确定 reference_id
     reference_id = f"reserve_{uuid.uuid4()}"
 
     try:
-        await inventory_service.reserve_stock(
-            db=db,
-            sku_id=reserve_data.sku_id,
-            warehouse_id=reserve_data.warehouse_id,
-            quantity=reserve_data.quantity,
-            reference_id=reference_id,
-            reference_type=reserve_data.reference_type,
-            notes=reserve_data.notes,
-            operator_id=current_user.id
-        )
-
-        return InventoryResponse(
-            success=True,
-            message=f"Successfully reserved {reserve_data.quantity} units",
-            data={"reference_id": reference_id}
-        )
-    except ValueError as e:
-        return InventoryResponse(
-            success=False,
-            message=str(e),
-            data=None
-        )
+        async with db.begin_nested():
+            await InventoryService.reserve_stock(
+                db=db,
+                sku_id=reserve_in.sku_id,
+                quantity=reserve_in.quantity,
+                reference_id=reference_id,
+                reference_type=reserve_in.reference_type,
+                warehouse_id=reserve_in.warehouse_id,
+                operator_id=current_user.id,
+                notes=reserve_in.notes
+            )
+        await db.commit()
+        return InventoryResponse(success=True, message="库存预留成功", data={"reference_id": reference_id})
+    except (InsufficientStockException, InventoryLockException) as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        return InventoryResponse(
-            success=False,
-            message=f"An error occurred: {str(e)}",
-            data=None
-        )
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"发生未知错误: {str(e)}")
+    finally:
+        await lock.release()
 
 
 @router.post("/stock/release", response_model=InventoryResponse)

@@ -1,15 +1,16 @@
 from datetime import datetime, timezone
-from typing import List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING, Optional
 
 from sqlalchemy import Boolean, Integer, String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 from app.models.rbac import user_role
 
 if TYPE_CHECKING:
     from app.models.rbac import Role
     from app.models.product_review import ProductReview, ReviewReply
+    from app.models.order import Cart, Order
 
 
 class User(Base):
@@ -36,4 +37,11 @@ class User(Base):
     )
     review_replies: Mapped[List["ReviewReply"]] = relationship(
         "ReviewReply", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    cart: Mapped[Optional["Cart"]] = relationship(
+        "Cart", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    orders: Mapped[List["Order"]] = relationship(
+        "Order", back_populates="user", cascade="all, delete-orphan"
     )

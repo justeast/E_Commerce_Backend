@@ -3,11 +3,12 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Integer, String, DateTime, ForeignKey, Boolean, Table, Column, Float, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 
 # 使用TYPE_CHECKING避免循环导入
 if TYPE_CHECKING:
     from app.models.product import Product
+    from app.models.order import CartItem, OrderItem
 
 # SKU-属性值关联表（多对多）
 sku_attribute_value = Table(
@@ -94,6 +95,13 @@ class SKU(Base):
     # 关联的属性值
     attribute_values: Mapped[List["AttributeValue"]] = relationship(
         "AttributeValue", secondary=sku_attribute_value, back_populates="skus"
+    )
+
+    cart_items: Mapped[List["CartItem"]] = relationship(
+        "CartItem", back_populates="sku"
+    )
+    order_items: Mapped[List["OrderItem"]] = relationship(
+        "OrderItem", back_populates="sku"
     )
 
     # 确保每个商品的SKU属性值组合是唯一的

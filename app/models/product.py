@@ -3,7 +3,7 @@ from typing import List, Optional, TYPE_CHECKING
 from sqlalchemy import Integer, String, DateTime, ForeignKey, Boolean, Table, Column, Float
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base_class import Base
 
 # 使用TYPE_CHECKING避免循环导入
 if TYPE_CHECKING:

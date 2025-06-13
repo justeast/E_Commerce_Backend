@@ -101,9 +101,10 @@ class InventoryService:
             warehouse_id: Optional[int] = None,
             operator_id: Optional[int] = None,
             notes: Optional[str] = None
-    ) -> bool:
+    ) -> None:
         """
-        预留库存
+        预留库存，此方法假定它在一个更大的事务中被调用
+        它不处理锁或事务提交/回滚，由调用者负责这些
         :param db:数据库会话
         :param sku_id: sku的id
         :param quantity: 预留数量
@@ -114,58 +115,51 @@ class InventoryService:
         :param notes: 备注
         :return: bool 是否成功预留
         """
-        # 获取Redis连接
-        redis = await get_redis_pool()
+        # 1. 检查总可用库存
+        is_available = await InventoryService.check_stock_availability(db, sku_id, quantity, warehouse_id)
+        if not is_available:
+            raise InsufficientStockException(f"SKU {sku_id} 库存不足，需要 {quantity}。")
 
-        # 创建库存锁
-        lock = RedisLock(redis, f"inventory:sku:{sku_id}", expire_seconds=5)
+        # 2. 确定从哪个仓库预留
+        items_to_update: List[InventoryItem] = []
+        if warehouse_id:
+            query = select(InventoryItem).where(
+                InventoryItem.sku_id == sku_id,
+                InventoryItem.warehouse_id == warehouse_id
+            )
+            result = await db.execute(query)
+            item = result.scalars().first()
+            if item:
+                items_to_update.append(item)
+        else:
+            # 如果未指定仓库，找到第一个有足够可用库存的仓库
+            query = select(InventoryItem).where(
+                InventoryItem.sku_id == sku_id,
+                (InventoryItem.quantity - InventoryItem.reserved_quantity) >= quantity
+            ).order_by(InventoryItem.warehouse_id).limit(1)
+            result = await db.execute(query)
+            item = result.scalars().first()
+            if item:
+                items_to_update.append(item)
 
-        # 尝试获取锁
-        if not await lock.acquire():
-            raise InventoryLockException(f"无法获取SKU {sku_id} 的库存锁")
+        if not items_to_update:
+            raise InsufficientStockException(f"SKU {sku_id} 在任何单个仓库中都没有足够的库存来满足 {quantity} 的需求。")
 
-        try:
-            # 检查库存是否充足
-            if not await InventoryService.check_stock_availability(db, sku_id, quantity, warehouse_id):
-                raise InsufficientStockException(f"SKU {sku_id} 库存不足")
+        # 3. 更新预留数量并创建事务记录
+        for item in items_to_update:
+            item.reserved_quantity += quantity
+            db.add(item)
 
-            if warehouse_id:
-                # 使用指定仓库
-                inventory_items = [await InventoryService._get_inventory_item(db, sku_id, warehouse_id)]
-            else:
-                # 自动选择库存充足的仓库
-                inventory_items = await InventoryService._select_warehouses_for_stock(db, sku_id, quantity)
-
-            # 预留库存并记录事务
-            for item in inventory_items:
-                # 更新预留数量
-                await db.execute(
-                    update(InventoryItem)
-                    .where(InventoryItem.id == item.id)
-                    .values(reserved_quantity=InventoryItem.reserved_quantity + quantity)
-                )
-
-                # 创建库存事务记录
-                transaction = InventoryTransaction(
-                    inventory_item_id=item.id,
-                    transaction_type=InventoryTransactionType.RESERVE,
-                    quantity=quantity,
-                    reference_id=reference_id,
-                    reference_type=reference_type,
-                    operator_id=operator_id,
-                    notes=notes
-                )
-                db.add(transaction)
-
-            await db.commit()
-            return True
-
-        except Exception as e:
-            await db.rollback()
-            raise e
-        finally:
-            # 释放锁
-            await lock.release()
+            transaction = InventoryTransaction(
+                inventory_item_id=item.id,
+                transaction_type=InventoryTransactionType.RESERVE,
+                quantity=quantity,
+                reference_id=reference_id,
+                reference_type=reference_type,
+                operator_id=operator_id,
+                notes=notes
+            )
+            db.add(transaction)
 
     @staticmethod
     async def release_reserved_stock(
@@ -659,3 +653,6 @@ class InventoryService:
             return True
 
         return False
+
+
+inventory_service = InventoryService()

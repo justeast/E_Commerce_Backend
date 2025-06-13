@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter
 from app.api.v1.endpoints import users, auth, rbac, categories, tags, products, attributes, attribute_values, skus, \
-    product_reviews, product_search, warehouses, inventory
+    product_reviews, product_search, warehouses, inventory, cart, orders
 
 api_router = APIRouter()
 
@@ -44,3 +44,9 @@ api_router.include_router(warehouses.router, prefix="/warehouses", tags=["wareho
 
 # 添加库存管理路由
 api_router.include_router(inventory.router, prefix="/inventory", tags=["inventory"])
+
+# 添加购物车路由
+api_router.include_router(cart.router, prefix="/cart", tags=["cart"])
+
+# 添加订单路由
+api_router.include_router(orders.router, prefix="/orders", tags=["orders"])
