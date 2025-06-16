@@ -32,7 +32,13 @@ class Order(OrderBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    order_sn: str
     user_id: int
+    pay_amount: float
+    receiver_name: str
+    receiver_phone: str
+    receiver_address: str
+    notes: Optional[str] = None
     created_at: datetime
     items: List[OrderItem] = []
 

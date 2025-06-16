@@ -5,7 +5,7 @@ from app.core.config import settings
 
 # 创建异步数据库引擎
 db_url = settings.DATABASE_URL
-engine = create_async_engine(db_url, echo=True, future=True)
+engine = create_async_engine(db_url, echo=True)
 
 # 创建异步会话工厂
 async_session = sessionmaker(  # type: ignore

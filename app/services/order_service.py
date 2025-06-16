@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import List
@@ -217,16 +218,100 @@ class OrderService:
         # 7. 返回创建的订单 (重新查询以获取完整的关联数据)
         return await self.get_order_by_id(db, new_order.id)
 
-    async def get_order_by_id(self, db: AsyncSession, order_id: int) -> Order:  # noqa
-        result = await db.execute(
+    async def get_order_by_id(self, db: AsyncSession, order_id: int, user_id: int = None) -> Order:  # noqa
+        query = (
             select(Order)
             .options(selectinload(Order.items).selectinload(OrderItem.sku))
             .where(Order.id == order_id)
         )
+        if user_id:
+            query = query.where(Order.user_id == user_id)
+        result = await db.execute(query)
         order = result.scalar_one_or_none()
         if not order:
-            raise ValueError(f"订单 {order_id} 不存在")
+            raise ValueError(f"订单 {order_id} 不存在或不属于该用户")
         return order
+
+    async def get_order_by_sn(self, db: AsyncSession, order_sn: str, user_id: int = None) -> Order:  # noqa
+        query = (
+            select(Order)
+            .options(selectinload(Order.items).selectinload(OrderItem.sku))
+            .where(Order.order_sn == order_sn)
+        )
+        if user_id:
+            query = query.where(Order.user_id == user_id)
+        result = await db.execute(query)
+        order = result.scalar_one_or_none()
+        if not order:
+            raise ValueError(f"订单号 {order_sn} 对应的订单不存在或不属于该用户")
+        return order
+
+    async def process_payment_notification(  # noqa
+            self,
+            db: AsyncSession,
+            order_sn: str,
+            trade_no: str,
+            paid_at: datetime,
+            total_amount: float,
+    ) -> bool:
+        """
+        处理支付成功后的异步通知
+        这是一个原子操作，包含在一个数据库事务中
+        1. 查找订单并加锁，防止并发处理
+        2. 验证订单状态，确保幂等性
+        3. 更新订单状态为“已支付”，并记录支付信息
+        4. 调用库存服务，将预留库存正式提交为出库
+
+        :return: bool, 始终返回True，以告知支付宝无需重试
+        """
+        try:
+            async with db.begin_nested():
+                # 步骤 1: 查找订单并使用悲观锁 (SELECT ... FOR UPDATE)
+                query = select(Order).where(Order.order_sn == order_sn).with_for_update()
+                result = await db.execute(query)
+                order = result.scalar_one_or_none()
+
+                if not order:
+                    logging.error(f"支付通知处理失败：找不到订单 {order_sn}")
+                    return True  # 找不到订单，也告知支付宝成功，避免重试
+
+                # 步骤 2: 幂等性检查
+                if order.status != OrderStatusEnum.PENDING_PAYMENT:
+                    logging.warning(f"订单 {order_sn} 状态为 {order.status.value}，无需重复处理支付通知。")
+                    return True
+
+                # 步骤 3: 验证支付金额
+                if order.pay_amount != total_amount:
+                    logging.error(
+                        f"支付通知处理失败：订单 {order_sn} 金额不匹配。"
+                        f"订单金额: {order.pay_amount}, 支付金额: {total_amount}"
+                    )
+                    return True  # 金额不符，也返回成功，防止重试，记录日志供人工排查
+
+                # 步骤 4: 更新订单状态和支付信息
+                order.status = OrderStatusEnum.PROCESSING
+                order.pay_time = paid_at
+                order.payment_method = "alipay"
+                order.trade_no = trade_no
+                db.add(order)
+
+                # 步骤 5: 调用库存服务提交预留库存
+                await inventory_service.commit_reserved_stock(
+                    db=db,
+                    order_sn=order.order_sn,
+                    operator_id=order.user_id
+                )
+
+            await db.commit()
+            logging.info(f"订单 {order_sn} 已成功处理支付通知，状态更新为处理中（已支付）。")
+
+        except Exception as e:
+            logging.error(f"处理订单 {order_sn} 的支付通知时发生严重错误: {e}", exc_info=True)
+            await db.rollback()
+            # 即使内部处理失败，也应告知支付宝成功，以防无限重试
+            # 失败的订单需要通过日志和监控进行人工介入
+
+        return True
 
 
 order_service = OrderService()

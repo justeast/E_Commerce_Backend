@@ -1,3 +1,4 @@
+import logging
 from typing import List, Optional, Dict
 from sqlalchemy import select, update, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -653,6 +654,59 @@ class InventoryService:
             return True
 
         return False
+
+    async def commit_reserved_stock(
+            self,
+            db: AsyncSession,
+            order_sn: str,
+            operator_id: Optional[int] = None
+    ) -> None:
+        """
+        提交预留库存（支付成功后调用），将预留库存转为实际出库
+        此方法不管理自己的事务，由调用方（如OrderService）负责
+        :param db: 数据库会话
+        :param order_sn: 订单号，作为预留时的关联ID
+        :param operator_id: 操作员ID
+        """
+        # 1. 查找此订单创建时产生的所有预留事务
+        query = select(InventoryTransaction).where(
+            InventoryTransaction.reference_id == order_sn,
+            InventoryTransaction.reference_type == "order_creation",
+            InventoryTransaction.transaction_type == InventoryTransactionType.RESERVE
+        )
+        result = await db.execute(query)
+        reserve_transactions = result.scalars().all()
+
+        if not reserve_transactions:
+            logging.warning(f"未找到订单 {order_sn} 的库存预留记录，可能已被处理。")
+            return
+
+        # 2. 对每一笔预留，进行库存提交操作
+        for tx in reserve_transactions:
+            # a. 更新库存项：总库存和预留库存都扣减
+            await db.execute(
+                update(InventoryItem)
+                .where(InventoryItem.id == tx.inventory_item_id)
+                .values(
+                    quantity=InventoryItem.quantity - tx.quantity,
+                    reserved_quantity=InventoryItem.reserved_quantity - tx.quantity
+                )
+            )
+
+            # b. 创建一条新的“出库”事务记录
+            stock_out_tx = InventoryTransaction(
+                inventory_item_id=tx.inventory_item_id,
+                transaction_type=InventoryTransactionType.STOCK_OUT,
+                quantity=tx.quantity,
+                reference_id=order_sn,
+                reference_type="payment_confirmation",
+                operator_id=operator_id,
+                notes=f"订单 {order_sn} 支付成功，确认出库。"
+            )
+            db.add(stock_out_tx)
+
+            # c. 检查库存预警
+            await self._check_alert_threshold(db, tx.inventory_item_id)
 
 
 inventory_service = InventoryService()
