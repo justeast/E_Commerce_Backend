@@ -166,24 +166,26 @@ class InventoryService:
     async def release_reserved_stock(
             db: AsyncSession,
             reference_id: str,
-            reference_type: str,
+            original_reference_type: str,
+            new_reference_type: str,
             operator_id: Optional[int] = None,
             notes: Optional[str] = None
-    ) -> bool:
+    ):
         """
-        释放预留库存（用于取消订单或支付超时）
+        释放指定关联ID和类型的预留库存
+        此方法不处理事务，应由调用方统一管理
         :param db: 数据库会话
-        :param reference_id: 关联ID（如订单ID）
-        :param reference_type: 关联类型（"release"）
+        :param reference_id: 关联ID（如订单号或手动预留ID）
+        :param original_reference_type: 要查找的原始预留记录的类型（如 'order_creation' 或 'reserve'）
+        :param new_reference_type: 新创建的释放流水的类型（如 'order_cancellation' 或 'manual_release'）
         :param operator_id: 操作员ID
         :param notes: 备注
-        :return: bool 是否成功释放
         """
-        # 查找所有与该引用相关的预留事务
+        # 查找所有与该引用和原始类型相关的预留事务
         query = select(InventoryTransaction).where(
             and_(
                 InventoryTransaction.reference_id == reference_id,
-                InventoryTransaction.reference_type == "reserve",
+                InventoryTransaction.reference_type == original_reference_type,
                 InventoryTransaction.transaction_type == InventoryTransactionType.RESERVE
             )
         )
@@ -191,39 +193,34 @@ class InventoryService:
         reserve_transactions = result.scalars().all()
 
         if not reserve_transactions:
-            return False
+            logging.warning(
+                f"尝试为(ref_id={reference_id}, ref_type={original_reference_type})释放库存，但未找到任何预留记录。")
+            return
 
-        try:
-            for transaction in reserve_transactions:
-                # 获取库存项
-                inventory_item_id = transaction.inventory_item_id
-                quantity = transaction.quantity
+        for transaction in reserve_transactions:
+            inventory_item = await db.get(InventoryItem, transaction.inventory_item_id)
+            if not inventory_item:
+                # 在事务中，如果数据不一致，应该抛出异常以触发回滚
+                raise ValueError(f"数据不一致：找不到库存项 ID {transaction.inventory_item_id}")
 
-                # 更新库存项，减少预留数量
-                await db.execute(
-                    update(InventoryItem)
-                    .where(InventoryItem.id == inventory_item_id)
-                    .values(reserved_quantity=InventoryItem.reserved_quantity - quantity)
-                )
+            # 减少预留数量，相当于将库存释放回可用状态
+            inventory_item.reserved_quantity -= transaction.quantity
+            db.add(inventory_item)
 
-                # 创建释放事务记录
-                release_transaction = InventoryTransaction(
-                    inventory_item_id=inventory_item_id,
-                    transaction_type=InventoryTransactionType.RELEASE,
-                    quantity=quantity,
-                    reference_id=reference_id,
-                    reference_type=reference_type,
-                    operator_id=operator_id,
-                    notes=notes
-                )
-                db.add(release_transaction)
+            # 创建一条对应的库存释放流水
+            release_transaction = InventoryTransaction(
+                inventory_item_id=transaction.inventory_item_id,
+                transaction_type=InventoryTransactionType.RELEASE,
+                quantity=transaction.quantity,
+                reference_id=reference_id,
+                reference_type=new_reference_type,
+                operator_id=operator_id,
+                notes=notes
+            )
+            db.add(release_transaction)
 
-            await db.commit()
-            return True
-
-        except Exception as e:
-            await db.rollback()
-            raise e
+        logging.info(
+            f"已准备为(ref_id={reference_id}, ref_type={original_reference_type})释放 {len(reserve_transactions)} 笔库存。")
 
     @staticmethod
     async def confirm_stock_out(

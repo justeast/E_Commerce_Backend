@@ -9,7 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.redis_client import get_redis_pool
 from app.models.order import Order, OrderItem, OrderStatusEnum, CartItem
-from app.models.product_attribute import SKU
+from app.models.product_attribute import SKU, AttributeValue
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderCreateFromSelected
 from app.services.cart_service import cart_service
@@ -115,7 +115,7 @@ class OrderService:
         # 这里需要在事务提交后重新查询，以获取数据库生成的ID和关系
         result = await db.execute(
             select(Order)
-            .options(selectinload(Order.items).selectinload(OrderItem.sku))
+            .options(selectinload(Order.items).selectinload(OrderItem.sku).selectinload(SKU.attribute_values))
             .where(Order.order_sn == order_sn)
         )
         return result.scalar_one()
@@ -218,10 +218,58 @@ class OrderService:
         # 7. 返回创建的订单 (重新查询以获取完整的关联数据)
         return await self.get_order_by_id(db, new_order.id)
 
+    async def cancel_order(self, db: AsyncSession, order_sn: str, user: User) -> Order:  # noqa
+        """
+        取消一个处于“待支付”状态的订单
+        这是一个原子操作，包含在一个数据库事务中
+        1. 查找订单并使用悲观锁，防止并发操作
+        2. 验证订单所有权和状态
+        3. 调用库存服务释放为该订单预留的库存
+        4. 更新订单状态为“已取消”
+        """
+        async with db.begin_nested():
+            # 步骤 1: 使用与 get_order_by_sn 一致的查询，预先加载所有关联项，并添加悲观锁
+            query = (
+                select(Order)
+                .options(
+                    selectinload(Order.items)
+                    .selectinload(OrderItem.sku)
+                    .selectinload(SKU.attribute_values)
+                    .selectinload(AttributeValue.attribute)
+                )
+                .where(Order.order_sn == order_sn)
+                .where(Order.user_id == user.id)
+                .with_for_update()
+            )
+            result = await db.execute(query)
+            order = result.scalar_one_or_none()
+
+            # 步骤 2: 验证订单
+            if not order:
+                raise ValueError(f'订单号 {order_sn} 对应的订单不存在或不属于您。')
+            if order.status != OrderStatusEnum.PENDING_PAYMENT:
+                raise ValueError(f'订单状态为“{order.status.value}”，无法取消。只有“待支付”的订单才能被取消。')
+
+            # 步骤 3: 调用库存服务释放库存
+            await inventory_service.release_reserved_stock(
+                db=db,
+                reference_id=order.order_sn,
+                original_reference_type="order_creation",
+                new_reference_type="order_cancellation",
+                operator_id=user.id,
+                notes=f"用户取消订单 {order.order_sn}"
+            )
+
+            # 步骤 4: 更新订单状态
+            order.status = OrderStatusEnum.CANCELLED
+            db.add(order)
+
+            return order
+
     async def get_order_by_id(self, db: AsyncSession, order_id: int, user_id: int = None) -> Order:  # noqa
         query = (
             select(Order)
-            .options(selectinload(Order.items).selectinload(OrderItem.sku))
+            .options(selectinload(Order.items).selectinload(OrderItem.sku).selectinload(SKU.attribute_values))
             .where(Order.id == order_id)
         )
         if user_id:
@@ -235,7 +283,7 @@ class OrderService:
     async def get_order_by_sn(self, db: AsyncSession, order_sn: str, user_id: int = None) -> Order:  # noqa
         query = (
             select(Order)
-            .options(selectinload(Order.items).selectinload(OrderItem.sku))
+            .options(selectinload(Order.items).selectinload(OrderItem.sku).selectinload(SKU.attribute_values))
             .where(Order.order_sn == order_sn)
         )
         if user_id:

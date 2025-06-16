@@ -136,7 +136,7 @@ class StockReserveRequest(BaseModel):
 
 class StockReleaseRequest(BaseModel):
     reference_id: str
-    reference_type: str = "release"
+    reference_type: str = "manual_release"
     notes: Optional[str] = None
 
 

@@ -54,6 +54,22 @@ async def create_order_from_selected_items(
                             detail=f"创建订单时发生内部错误: {str(e)}")
 
 
+@router.get("/{order_sn}", response_model=Order)
+async def get_order_details(
+        order_sn: str,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    获取单个订单的详细信息
+    """
+    try:
+        order = await order_service.get_order_by_sn(db=db, order_sn=order_sn, user_id=current_user.id)
+        return order
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 # 定义支付URL的响应模型
 class PaymentURLResponse(BaseModel):
     payment_url: str
@@ -102,3 +118,28 @@ async def request_payment_for_order(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"生成支付链接失败: {str(e)}"
         )
+
+
+@router.post("/{order_sn}/cancel", response_model=Order)
+async def cancel_order(
+        order_sn: str,
+        db: AsyncSession = Depends(get_db),
+        current_user: User = Depends(get_current_active_user),
+):
+    """
+    用户主动取消一个“待支付”的订单
+    """
+    try:
+        # 调用服务层方法来执行取消逻辑
+        cancelled_order = await order_service.cancel_order(db=db, order_sn=order_sn, user=current_user)
+        await db.commit()
+        return cancelled_order
+    except ValueError as e:
+        await db.rollback()
+        # 服务层会抛出ValueError，例如订单不存在、状态不正确等
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        # 兜底的异常处理
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                            detail=f"取消订单时发生内部错误: {str(e)}")

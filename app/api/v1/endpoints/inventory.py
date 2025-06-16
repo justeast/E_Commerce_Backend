@@ -513,41 +513,30 @@ async def release_stock(
         *,
         db: AsyncSession = Depends(get_db),
         release_data: StockReleaseRequest,
-        _: User = Depends(has_permission("inventory:manage")),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_current_user),
+        _: User = Depends(has_permission("inventory:manage"))
 ):
     """
-    释放预留库存，主要是为了配合stock/reserve使用，如：
-    先预留后取消的场景(订单超时未支付、用户取消订单等)
+    手动释放预留库存，主要是为了配合 stock/reserve 使用
     """
     inventory_service = InventoryService()
-
     try:
         await inventory_service.release_reserved_stock(
             db=db,
             reference_id=release_data.reference_id,
-            reference_type=release_data.reference_type,
-            notes=release_data.notes,
-            operator_id=current_user.id
+            original_reference_type="reserve",  # 手动预留的类型是 'reserve'
+            new_reference_type=release_data.reference_type,  # 本次操作的类型是 'manual_release'
+            operator_id=current_user.id,
+            notes=release_data.notes
         )
-
-        return InventoryResponse(
-            success=True,
-            message=f"Successfully released reserved stock for reference {release_data.reference_id}",
-            data=None
-        )
+        await db.commit()
+        return InventoryResponse(success=True, message="库存已成功释放。")
     except ValueError as e:
-        return InventoryResponse(
-            success=False,
-            message=str(e),
-            data=None
-        )
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        return InventoryResponse(
-            success=False,
-            message=f"An error occurred: {str(e)}",
-            data=None
-        )
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"释放库存时发生内部错误: {e}")
 
 
 @router.post("/stock/confirm", response_model=InventoryResponse)
@@ -559,7 +548,7 @@ async def confirm_stock(
         current_user: User = Depends(get_current_user)
 ):
     """
-    确认出库，主要是为了配合stock/reserve使用来完成正确支付完成出库
+    确认出库，主要是为了配合stock/reserve使用
     """
     inventory_service = InventoryService()
 
