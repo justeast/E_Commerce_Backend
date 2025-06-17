@@ -1,7 +1,7 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -218,17 +218,18 @@ class OrderService:
         # 7. 返回创建的订单 (重新查询以获取完整的关联数据)
         return await self.get_order_by_id(db, new_order.id)
 
-    async def cancel_order(self, db: AsyncSession, order_sn: str, user: User) -> Order:  # noqa
+    async def cancel_order(self, db: AsyncSession, order_sn: str, user: Optional[User] = None) -> Order:  # noqa
         """
-        取消一个处于“待支付”状态的订单
+        取消一个处于“待支付”状态的订单，此方法可由用户或系统调用
         这是一个原子操作，包含在一个数据库事务中
         1. 查找订单并使用悲观锁，防止并发操作
-        2. 验证订单所有权和状态
-        3. 调用库存服务释放为该订单预留的库存
-        4. 更新订单状态为“已取消”
+        2. 如果是用户操作，验证订单所有权；如果是系统操作，则跳过
+        3. 验证订单状态
+        4. 调用库存服务释放为该订单预留的库存
+        5. 更新订单状态为“已取消”
         """
         async with db.begin_nested():
-            # 步骤 1: 使用与 get_order_by_sn 一致的查询，预先加载所有关联项，并添加悲观锁
+            # 步骤 1: 构建基础查询，预先加载所有关联项
             query = (
                 select(Order)
                 .options(
@@ -238,29 +239,46 @@ class OrderService:
                     .selectinload(AttributeValue.attribute)
                 )
                 .where(Order.order_sn == order_sn)
-                .where(Order.user_id == user.id)
-                .with_for_update()
             )
+
+            # 步骤 2: 如果是用户发起的取消，则检查订单所有权
+            if user:
+                query = query.where(Order.user_id == user.id)
+
+            # 添加悲观锁
+            query = query.with_for_update()
+
             result = await db.execute(query)
             order = result.scalar_one_or_none()
 
-            # 步骤 2: 验证订单
+            # 步骤 3: 验证订单
             if not order:
-                raise ValueError(f'订单号 {order_sn} 对应的订单不存在或不属于您。')
-            if order.status != OrderStatusEnum.PENDING_PAYMENT:
-                raise ValueError(f'订单状态为“{order.status.value}”，无法取消。只有“待支付”的订单才能被取消。')
+                error_message = f'订单号 {order_sn} 对应的订单不存在'
+                if user:
+                    error_message += '或不属于您'
+                raise ValueError(error_message)
 
-            # 步骤 3: 调用库存服务释放库存
+            if order.status != OrderStatusEnum.PENDING_PAYMENT:
+                raise ValueError(f'订单状态为“{order.status.value}”，无法取消，只有“待支付”的订单才能被取消')
+
+            # 步骤 4: 调用库存服务释放库存
+            if user:
+                operator_id = user.id
+                notes = f"用户取消订单 {order.order_sn}"
+            else:
+                operator_id = 3  # 3代表系统操作（3为系统管理员）
+                notes = f"系统因超时自动取消订单 {order.order_sn}"
+
             await inventory_service.release_reserved_stock(
                 db=db,
                 reference_id=order.order_sn,
                 original_reference_type="order_creation",
                 new_reference_type="order_cancellation",
-                operator_id=user.id,
-                notes=f"用户取消订单 {order.order_sn}"
+                operator_id=operator_id,
+                notes=notes
             )
 
-            # 步骤 4: 更新订单状态
+            # 步骤 5: 更新订单状态
             order.status = OrderStatusEnum.CANCELLED
             db.add(order)
 

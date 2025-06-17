@@ -31,5 +31,9 @@ class Settings(BaseSettings):
     ALIPAY_NOTIFY_URL: str = "https://c4ba-223-159-70-244.ngrok-free.app/api/v1/payment/alipay/notify"  # 支付结果异步通知URL (后端API)
     ALIPAY_DEBUG: bool = True  # True为沙箱环境, False为正式环境
 
+    # Celery配置
+    CELERY_BROKER_URL: str = "redis://:123456@localhost:6379/0"
+    CELERY_RESULT_BACKEND: str = "redis://:123456@localhost:6379/1"
+
 
 settings = Settings()
