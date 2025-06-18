@@ -1,8 +1,9 @@
 import enum
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import List, Optional, TYPE_CHECKING
 
-from sqlalchemy import (DateTime, Enum, Float, ForeignKey, Integer,
+from sqlalchemy import (DateTime, Enum, Numeric, ForeignKey, Integer,
                         String, Text)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -11,6 +12,7 @@ from app.db.base_class import Base
 if TYPE_CHECKING:
     from .user import User  # noqa
     from .product_attribute import SKU  # noqa
+    from .promotion import Promotion  # noqa
 
 
 class OrderStatusEnum(str, enum.Enum):
@@ -54,7 +56,7 @@ class CartItem(Base):
     sku_id: Mapped[int] = mapped_column(Integer, ForeignKey("skus.id"), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     # 添加时SKU的价格，防止SKU价格变动影响购物车显示
-    price: Mapped[float] = mapped_column(Float, nullable=False)
+    price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
@@ -73,10 +75,10 @@ class Order(Base):
     order_sn: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
 
-    total_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    pay_amount: Mapped[float] = mapped_column(Float, nullable=False)
-    freight_amount: Mapped[float] = mapped_column(Float, default=0.0)
-    promotion_amount: Mapped[float] = mapped_column(Float, default=0.0)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    pay_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    freight_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.0'))
+    promotion_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.0'))
 
     status: Mapped[OrderStatusEnum] = mapped_column(Enum(OrderStatusEnum), default=OrderStatusEnum.PENDING_PAYMENT)
     payment_method: Mapped[Optional[PaymentMethodEnum]] = mapped_column(Enum(PaymentMethodEnum), nullable=True)
@@ -92,6 +94,9 @@ class Order(Base):
 
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    promotion_id: Mapped[Optional[int]] = mapped_column(ForeignKey("promotion.id"), nullable=True,
+                                                        comment="应用的促销活动ID")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
@@ -100,6 +105,7 @@ class Order(Base):
     # 关联
     user: Mapped["User"] = relationship("User", back_populates="orders")
     items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
+    promotion: Mapped[Optional["Promotion"]] = relationship("Promotion", back_populates="orders", lazy="joined")
     logs: Mapped[List["OrderLog"]] = relationship("OrderLog", back_populates="order", cascade="all, delete-orphan")
 
 
@@ -113,7 +119,7 @@ class OrderItem(Base):
 
     product_name: Mapped[str] = mapped_column(String(200), nullable=False)
     sku_name: Mapped[str] = mapped_column(String(200), nullable=False)
-    sku_price: Mapped[float] = mapped_column(Float, nullable=False)
+    sku_price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     sku_image_url: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 

@@ -1,7 +1,8 @@
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
+from decimal import Decimal
+from typing import List, Optional, Tuple
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.core.redis_client import get_redis_pool
 from app.models.order import Order, OrderItem, OrderStatusEnum, CartItem
 from app.models.product_attribute import SKU, AttributeValue
+from app.models.promotion import Promotion, PromotionTargetType, PromotionConditionType, PromotionActionType
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderCreateFromSelected
 from app.services.cart_service import cart_service
@@ -68,7 +70,7 @@ class OrderService:
                 )
                 skus_map = {sku.id: sku for sku in result.scalars().all()}
 
-                total_amount = sum(item.price * item.quantity for item in cart.items)
+                total_amount = sum((item.price * item.quantity for item in cart.items), Decimal('0.0'))
                 order_items_to_create = [
                     OrderItem(
                         sku_id=item.sku_id,
@@ -81,12 +83,25 @@ class OrderService:
                     for item in cart.items
                 ]
 
+                # 新增：计算最佳促销优惠
+                pay_amount = total_amount
+                promotion_amount = Decimal('0.0')
+                applied_promotion_id = None
+
+                best_promo, discount = await self._calculate_best_promotion(db, cart.items)
+                if best_promo:
+                    pay_amount = max(Decimal('0.0'), total_amount - discount)  # 确保支付金额不为负
+                    promotion_amount = discount
+                    applied_promotion_id = best_promo.id
+
                 # 2c. 创建订单主体
                 new_order = Order(
                     order_sn=order_sn,
                     user_id=user.id,
                     total_amount=total_amount,
-                    pay_amount=total_amount,  # 实际支付金额，此处暂不考虑优惠
+                    pay_amount=pay_amount,  # 使用计算后的实际支付金额
+                    promotion_amount=promotion_amount,
+                    promotion_id=applied_promotion_id,
                     status=OrderStatusEnum.PENDING_PAYMENT,
                     receiver_name=order_in.receiver_name,
                     receiver_phone=order_in.receiver_phone,
@@ -151,7 +166,7 @@ class OrderService:
 
             # 4. 数据库事务
             async with db.begin_nested():
-                total_amount = 0.0
+                total_amount = Decimal('0.0')
                 order_items_to_create = []
 
                 for item in selected_cart_items:
@@ -181,12 +196,24 @@ class OrderService:
                         )
                     )
 
+                # 新增：计算最佳促销优惠
+                pay_amount = total_amount
+                promotion_amount = Decimal('0.0')
+                applied_promotion_id = None
+
+                best_promo, discount = await self._calculate_best_promotion(db, selected_cart_items)
+                if best_promo:
+                    pay_amount = max(Decimal('0'), total_amount - discount)
+                    promotion_amount = discount
+                    applied_promotion_id = best_promo.id
                 # b. 创建 Order (使用预先生成的order_sn)
                 new_order = Order(
                     order_sn=order_sn,
                     user_id=user.id,
                     total_amount=total_amount,
-                    pay_amount=total_amount,
+                    pay_amount=pay_amount,
+                    promotion_amount=promotion_amount,
+                    promotion_id=applied_promotion_id,
                     status=OrderStatusEnum.PENDING_PAYMENT,
                     receiver_name=order_in.receiver_name,
                     receiver_phone=order_in.receiver_phone,
@@ -311,6 +338,91 @@ class OrderService:
         if not order:
             raise ValueError(f"订单号 {order_sn} 对应的订单不存在或不属于该用户")
         return order
+
+    async def _calculate_best_promotion(self, db: AsyncSession, cart_items: List[CartItem]) -> Tuple[
+        Optional[Promotion], Decimal]:
+        """
+        根据购物车商品计算最优的促销活动
+        :return: (最佳促销活动对象, 优惠金额)
+        """
+        now = datetime.now(timezone.utc)
+        stmt = select(Promotion).where(
+            Promotion.is_active == True,
+            Promotion.start_time <= now,
+            Promotion.end_time >= now
+        ).order_by(Promotion.id.desc())  # 按ID降序，优先应用新创建的活动
+
+        result = await db.execute(stmt)
+        active_promotions = result.scalars().all()
+
+        best_promotion: Optional[Promotion] = None
+        max_discount = Decimal('0.0')
+
+        for promo in active_promotions:
+            # 1. 筛选出符合此促销活动目标范围的商品
+            applicable_items = []
+            if promo.target_type == PromotionTargetType.ALL:
+                applicable_items = cart_items
+            elif promo.target_type == PromotionTargetType.PRODUCT:
+                applicable_items = [item for item in cart_items if item.sku.product_id in promo.target_ids]
+            elif promo.target_type == PromotionTargetType.CATEGORY:
+                applicable_items = [item for item in cart_items if item.sku.product.category_id in promo.target_ids]
+            elif promo.target_type == PromotionTargetType.TAG:
+                applicable_items = [item for item in cart_items if
+                                    any(tag.id in promo.target_ids for tag in item.sku.product.tags)]
+
+            if not applicable_items:
+                continue
+
+            # 2. 根据促销类型计算优惠
+            current_discount = Decimal('0.0')
+            promo_base_amount = sum((item.price * item.quantity for item in applicable_items), Decimal('0.0'))
+
+            # 场景一：针对一组商品进行满减或折扣 (FIXED, PERCENTAGE)
+            if promo.action_type in [PromotionActionType.FIXED, PromotionActionType.PERCENTAGE]:
+                promo_base_quantity = sum(item.quantity for item in applicable_items)
+                condition_met = False
+                if promo.condition_type == PromotionConditionType.MIN_AMOUNT:
+                    if promo_base_amount >= promo.condition_value:
+                        condition_met = True
+                elif promo.condition_type == PromotionConditionType.MIN_QUANTITY:
+                    if promo_base_quantity >= promo.condition_value:
+                        condition_met = True
+
+                if condition_met:
+                    if promo.action_type == PromotionActionType.FIXED:
+                        current_discount = promo.action_value
+                    elif promo.action_type == PromotionActionType.PERCENTAGE:
+                        discount_percentage = promo.action_value / Decimal('100.0')
+                        current_discount = promo_base_amount * discount_percentage
+
+            # 场景二：单品满N件减M件
+            elif promo.action_type == PromotionActionType.SINGLE_PRODUCT_BUY_N_GET_M_FREE:
+                # 此类促销的条件必须是“满件数”
+                if promo.condition_type == PromotionConditionType.MIN_QUANTITY and promo.action_value >= 1:
+                    total_item_discount = Decimal('0.0')
+                    # 遍历每一个适用的商品项，独立计算优惠
+                    for item in applicable_items:
+                        if item.quantity >= promo.condition_value:
+                            # 计算此商品满足了多少组“满N件”
+                            num_eligible_sets = item.quantity // promo.condition_value
+                            # 计算总共应减免的件数
+                            num_free_items = num_eligible_sets * int(promo.action_value)
+                            # 确保减免的件数不超过购买件数
+                            num_free_items = min(num_free_items, item.quantity)
+                            # 折扣额 = 单价 * 减免件数
+                            item_discount = item.price * num_free_items
+                            total_item_discount += item_discount
+                    current_discount = total_item_discount
+
+            # 3. 确保优惠金额不超过适用商品的总价，并更新最优解
+            current_discount = min(current_discount, promo_base_amount)
+
+            if current_discount > max_discount:
+                max_discount = current_discount
+                best_promotion = promo
+
+        return best_promotion, max_discount
 
     async def process_payment_notification(  # noqa
             self,

@@ -4,6 +4,7 @@ from typing import List, Optional
 import re
 
 from app.schemas.product_attribute import SKU
+from app.schemas.promotion import Promotion
 
 
 #  OrderItem Schemas
@@ -41,6 +42,7 @@ class Order(OrderBase):
     notes: Optional[str] = None
     created_at: datetime
     items: List[OrderItem] = []
+    promotion: Optional[Promotion] = None
 
 
 class OrderCreate(BaseModel):
