@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 import re
 
+from app.models.order import OrderStatusEnum
 from app.schemas.product_attribute import SKU
 from app.schemas.promotion import Promotion
 
@@ -35,7 +36,12 @@ class Order(OrderBase):
     id: int
     order_sn: str
     user_id: int
+    total_amount: float
+    promotion_amount: float
+    coupon_discount_amount: float
     pay_amount: float
+    user_coupon_id: Optional[int] = None
+    status: OrderStatusEnum
     receiver_name: str
     receiver_phone: str
     receiver_address: str
@@ -51,6 +57,7 @@ class OrderCreate(BaseModel):
     receiver_phone: str
     receiver_address: str
     notes: Optional[str] = None
+    user_coupon_id: Optional[int] = Field(None, description="用户优惠券ID")
 
     @field_validator('receiver_phone')
     @classmethod

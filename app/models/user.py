@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from app.models.rbac import Role
     from app.models.product_review import ProductReview, ReviewReply
     from app.models.order import Cart, Order
+    from app.models.coupon import UserCoupon
 
 
 class User(Base):
@@ -44,4 +45,8 @@ class User(Base):
     )
     orders: Mapped[List["Order"]] = relationship(
         "Order", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    coupons: Mapped[List["UserCoupon"]] = relationship(
+        "UserCoupon", back_populates="user", cascade="all, delete-orphan"
     )

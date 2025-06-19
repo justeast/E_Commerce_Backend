@@ -1,4 +1,4 @@
-# 在此处导入所有现有模型，以便 Alembic 可以检测到它们
+# 在此处导入所有现有模型，以便 Alembic 可以检测到它们(作为模型注册中心)
 # 用于自动生成迁移.
 from app.db.base_class import Base  # noqa
 
@@ -10,3 +10,4 @@ from app.models.inventory import Warehouse, InventoryItem, InventoryTransaction,
 from app.models.product_review import ProductReview, ReviewReply  # noqa
 from app.models.order import Cart, CartItem, Order, OrderItem, OrderLog  # noqa
 from app.models.promotion import Promotion  # noqa
+from app.models.coupon import CouponTemplate, UserCoupon  # noqa

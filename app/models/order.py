@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .user import User  # noqa
     from .product_attribute import SKU  # noqa
     from .promotion import Promotion  # noqa
+    from .coupon import UserCoupon  # noqa
 
 
 class OrderStatusEnum(str, enum.Enum):
@@ -79,6 +80,8 @@ class Order(Base):
     pay_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     freight_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.0'))
     promotion_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.0'))
+    coupon_discount_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal('0.0'),
+                                                            comment="优惠券抵扣金额")
 
     status: Mapped[OrderStatusEnum] = mapped_column(Enum(OrderStatusEnum), default=OrderStatusEnum.PENDING_PAYMENT)
     payment_method: Mapped[Optional[PaymentMethodEnum]] = mapped_column(Enum(PaymentMethodEnum), nullable=True)
@@ -97,6 +100,9 @@ class Order(Base):
     promotion_id: Mapped[Optional[int]] = mapped_column(ForeignKey("promotion.id"), nullable=True,
                                                         comment="应用的促销活动ID")
 
+    user_coupon_id: Mapped[Optional[int]] = mapped_column(ForeignKey("user_coupons.id"), nullable=True,
+                                                          comment="使用的用户优惠券ID")
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
@@ -106,6 +112,7 @@ class Order(Base):
     user: Mapped["User"] = relationship("User", back_populates="orders")
     items: Mapped[List["OrderItem"]] = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     promotion: Mapped[Optional["Promotion"]] = relationship("Promotion", back_populates="orders", lazy="joined")
+    user_coupon: Mapped[Optional["UserCoupon"]] = relationship("UserCoupon", back_populates="order")
     logs: Mapped[List["OrderLog"]] = relationship("OrderLog", back_populates="order", cascade="all, delete-orphan")
 
 

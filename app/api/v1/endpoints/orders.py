@@ -48,10 +48,6 @@ async def create_order_from_selected_items(
         return order
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    except Exception as e:
-        # 通用的异常捕获，以防服务层抛出其他类型的错误
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                            detail=f"创建订单时发生内部错误: {str(e)}")
 
 
 @router.get("/{order_sn}", response_model=Order)

@@ -9,12 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.redis_client import get_redis_pool
+from app.models.coupon import CouponStatus
 from app.models.order import Order, OrderItem, OrderStatusEnum, CartItem
 from app.models.product_attribute import SKU, AttributeValue
 from app.models.promotion import Promotion, PromotionTargetType, PromotionConditionType, PromotionActionType
 from app.models.user import User
 from app.schemas.order import OrderCreate, OrderCreateFromSelected
 from app.services.cart_service import cart_service
+from app.services.coupon_service import coupon_service
 from app.services.inventory_service import inventory_service, InsufficientStockException, InventoryLockException
 from app.utils.redis_lock import RedisLock
 
@@ -83,7 +85,7 @@ class OrderService:
                     for item in cart.items
                 ]
 
-                # 新增：计算最佳促销优惠
+                # 计算最佳促销优惠
                 pay_amount = total_amount
                 promotion_amount = Decimal('0.0')
                 applied_promotion_id = None
@@ -94,6 +96,23 @@ class OrderService:
                     promotion_amount = discount
                     applied_promotion_id = best_promo.id
 
+                # 处理优惠券
+                coupon_discount_amount = Decimal('0.0')
+                applied_user_coupon_id = None
+                if order_in.user_coupon_id:
+                    try:
+                        # 优惠券作用于促销后的金额
+                        coupon_discount_amount, applied_user_coupon_id = await self._apply_coupon_discount(
+                            db,
+                            user_id=user.id,
+                            user_coupon_id=order_in.user_coupon_id,
+                            current_amount=pay_amount
+                        )
+                        pay_amount -= coupon_discount_amount
+                    except ValueError as e:
+                        # 如果优惠券无效，抛出异常，让前端明确知道为什么失败
+                        raise ValueError(f"无法使用优惠券: {e}")
+
                 # 2c. 创建订单主体
                 new_order = Order(
                     order_sn=order_sn,
@@ -102,6 +121,8 @@ class OrderService:
                     pay_amount=pay_amount,  # 使用计算后的实际支付金额
                     promotion_amount=promotion_amount,
                     promotion_id=applied_promotion_id,
+                    coupon_discount_amount=coupon_discount_amount,
+                    user_coupon_id=applied_user_coupon_id,
                     status=OrderStatusEnum.PENDING_PAYMENT,
                     receiver_name=order_in.receiver_name,
                     receiver_phone=order_in.receiver_phone,
@@ -196,7 +217,7 @@ class OrderService:
                         )
                     )
 
-                # 新增：计算最佳促销优惠
+                # 计算最佳促销优惠
                 pay_amount = total_amount
                 promotion_amount = Decimal('0.0')
                 applied_promotion_id = None
@@ -206,6 +227,23 @@ class OrderService:
                     pay_amount = max(Decimal('0'), total_amount - discount)
                     promotion_amount = discount
                     applied_promotion_id = best_promo.id
+
+                # 处理优惠券
+                coupon_discount_amount = Decimal('0.0')
+                applied_user_coupon_id = None
+                if order_in.user_coupon_id:
+                    try:
+                        # 优惠券作用于促销后的金额
+                        coupon_discount_amount, applied_user_coupon_id = await self._apply_coupon_discount(
+                            db,
+                            user_id=user.id,
+                            user_coupon_id=order_in.user_coupon_id,
+                            current_amount=pay_amount
+                        )
+                        pay_amount -= coupon_discount_amount
+                    except ValueError as e:
+                        # 如果优惠券无效，抛出异常，让前端明确知道为什么失败
+                        raise ValueError(f"无法使用优惠券: {e}")
                 # b. 创建 Order (使用预先生成的order_sn)
                 new_order = Order(
                     order_sn=order_sn,
@@ -214,6 +252,8 @@ class OrderService:
                     pay_amount=pay_amount,
                     promotion_amount=promotion_amount,
                     promotion_id=applied_promotion_id,
+                    coupon_discount_amount=coupon_discount_amount,
+                    user_coupon_id=applied_user_coupon_id,
                     status=OrderStatusEnum.PENDING_PAYMENT,
                     receiver_name=order_in.receiver_name,
                     receiver_phone=order_in.receiver_phone,
@@ -231,9 +271,6 @@ class OrderService:
         except (InsufficientStockException, InventoryLockException) as e:
             await db.rollback()
             raise ValueError(str(e))
-        except Exception as e:
-            await db.rollback()
-            raise Exception(f"创建订单时发生未知内部错误: {e}")
         finally:
             # 6. 释放锁
             for lock in locks:
@@ -287,6 +324,11 @@ class OrderService:
 
             if order.status != OrderStatusEnum.PENDING_PAYMENT:
                 raise ValueError(f'订单状态为“{order.status.value}”，无法取消，只有“待支付”的订单才能被取消')
+
+            # 新增：如果订单使用了优惠券，则返还优惠券
+            if order.user_coupon_id:
+                # 此处我们假设coupon_service有能力处理返还逻辑
+                await coupon_service.return_coupon(db, user_coupon_id=order.user_coupon_id, user_id=order.user_id)
 
             # 步骤 4: 调用库存服务释放库存
             if user:
@@ -345,7 +387,8 @@ class OrderService:
         根据购物车商品计算最优的促销活动
         :return: (最佳促销活动对象, 优惠金额)
         """
-        now = datetime.now(timezone.utc)
+        # 使用 naive UTC 时间进行数据库查询，以匹配数据库中 naive 的 datetime 列
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         stmt = select(Promotion).where(
             Promotion.is_active == True,
             Promotion.start_time <= now,
@@ -423,6 +466,56 @@ class OrderService:
                 best_promotion = promo
 
         return best_promotion, max_discount
+
+    async def _apply_coupon_discount(  # noqa
+            self,
+            db: AsyncSession,
+            *,
+            user_id: int,
+            user_coupon_id: int,
+            current_amount: Decimal
+    ) -> Tuple[Decimal, int]:
+        """
+        验证并应用优惠券，返回优惠金额和优惠券ID
+        如果验证失败，则抛出ValueError
+        :return: (优惠金额, 使用的优惠券ID)
+        """
+        # 1. 获取并验证优惠券基本状态
+        # 需要预加载template以避免懒加载问题
+        user_coupon = await coupon_service.get_user_coupon_by_id(db, coupon_id=user_coupon_id, user_id=user_id)
+        if not user_coupon:
+            raise ValueError("优惠券不存在或不属于您")
+        if user_coupon.status != CouponStatus.UNUSED:
+            raise ValueError(f"优惠券状态为 {user_coupon.status.value}，无法使用")
+
+        # 2. 获取优惠券模板并校验有效期
+        template = user_coupon.template
+        if not template:
+            raise ValueError("优惠券模板数据缺失")
+        # 优惠券的有效期由其模板决定
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if template.valid_to and now > template.valid_to:
+            raise ValueError("优惠券已过期")
+
+        # 3. 验证订单是否满足优惠券使用条件
+        if template.min_spend and current_amount < template.min_spend:
+            raise ValueError(f"订单金额未达到优惠券最低消费 {template.min_spend} 元")
+
+        # 4. 计算优惠金额
+        discount = Decimal('0.0')
+        if template.type == 'FIXED':
+            discount = template.value
+        elif template.type == 'PERCENTAGE':
+            # 优惠券折扣通常作用于当前价格
+            discount = current_amount * (template.value / Decimal('100.0'))
+
+        # 确保优惠金额不超过当前订单金额，并且最终支付金额不为负
+        discount = min(discount, current_amount)
+
+        # 5. 将优惠券标记为已使用
+        await coupon_service.use_coupon(db, user_coupon=user_coupon)
+
+        return discount.quantize(Decimal('0.01')), user_coupon.id
 
     async def process_payment_notification(  # noqa
             self,
