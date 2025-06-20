@@ -4,6 +4,7 @@ from sqlalchemy import Integer, String, DateTime, ForeignKey, Boolean, Table, Co
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.models.seckill import SeckillProduct
 
 # 使用TYPE_CHECKING避免循环导入
 if TYPE_CHECKING:
@@ -103,6 +104,8 @@ class SKU(Base):
     order_items: Mapped[List["OrderItem"]] = relationship(
         "OrderItem", back_populates="sku"
     )
+
+    seckill_products: Mapped[List["SeckillProduct"]] = relationship("SeckillProduct", back_populates="sku")
 
     # 确保每个商品的SKU属性值组合是唯一的
     __table_args__ = (
