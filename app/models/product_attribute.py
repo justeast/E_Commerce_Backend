@@ -10,6 +10,7 @@ from app.models.seckill import SeckillProduct
 if TYPE_CHECKING:
     from app.models.product import Product
     from app.models.order import CartItem, OrderItem
+    from app.models.browsing_history import BrowsingHistory
 
 # SKU-属性值关联表（多对多）
 sku_attribute_value = Table(
@@ -106,6 +107,10 @@ class SKU(Base):
     )
 
     seckill_products: Mapped[List["SeckillProduct"]] = relationship("SeckillProduct", back_populates="sku")
+
+    browsing_histories: Mapped[List["BrowsingHistory"]] = relationship(
+        "BrowsingHistory", back_populates="sku", cascade="all, delete-orphan"
+    )
 
     # 确保每个商品的SKU属性值组合是唯一的
     __table_args__ = (

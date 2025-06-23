@@ -2,7 +2,8 @@
 
 from fastapi import APIRouter
 from app.api.v1.endpoints import users, auth, rbac, categories, tags, products, attributes, attribute_values, skus, \
-    product_reviews, product_search, warehouses, inventory, cart, orders, payment, promotions, coupon, seckill
+    product_reviews, product_search, warehouses, inventory, cart, orders, payment, promotions, coupon, seckill, \
+    user_behavior
 
 api_router = APIRouter()
 
@@ -62,3 +63,6 @@ api_router.include_router(coupon.router, prefix="/coupons", tags=["Coupons"])
 
 # 添加秒杀活动路由
 api_router.include_router(seckill.router, prefix="/seckill", tags=["seckill"])
+
+# 添加用户行为路由
+api_router.include_router(user_behavior.router, prefix="/user", tags=["User Behavior"])

@@ -12,3 +12,4 @@ from app.models.order import Cart, CartItem, Order, OrderItem, OrderLog  # noqa
 from app.models.promotion import Promotion  # noqa
 from app.models.coupon import CouponTemplate, UserCoupon  # noqa
 from app.models.seckill import SeckillActivity, SeckillProduct  # noqa
+from app.models.browsing_history import BrowsingHistory  # noqa

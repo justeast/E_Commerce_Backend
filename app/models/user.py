@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from app.models.product_review import ProductReview, ReviewReply
     from app.models.order import Cart, Order
     from app.models.coupon import UserCoupon
+    from app.models.browsing_history import BrowsingHistory
 
 
 class User(Base):
@@ -49,4 +50,8 @@ class User(Base):
 
     coupons: Mapped[List["UserCoupon"]] = relationship(
         "UserCoupon", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    browsing_history: Mapped[List["BrowsingHistory"]] = relationship(
+        "BrowsingHistory", back_populates="user", cascade="all, delete-orphan"
     )
