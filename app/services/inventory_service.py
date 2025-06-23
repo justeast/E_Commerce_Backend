@@ -125,8 +125,10 @@ class InventoryService:
         items_to_update: List[InventoryItem] = []
         if warehouse_id:
             query = select(InventoryItem).where(
-                InventoryItem.sku_id == sku_id,
-                InventoryItem.warehouse_id == warehouse_id
+                and_(
+                    InventoryItem.sku_id == sku_id,
+                    InventoryItem.warehouse_id == warehouse_id
+                )
             )
             result = await db.execute(query)
             item = result.scalars().first()
@@ -135,8 +137,10 @@ class InventoryService:
         else:
             # 如果未指定仓库，找到第一个有足够可用库存的仓库
             query = select(InventoryItem).where(
-                InventoryItem.sku_id == sku_id,
-                (InventoryItem.quantity - InventoryItem.reserved_quantity) >= quantity
+                and_(
+                    InventoryItem.sku_id == sku_id,
+                    (InventoryItem.quantity - InventoryItem.reserved_quantity) >= quantity
+                )
             ).order_by(InventoryItem.warehouse_id).limit(1)
             result = await db.execute(query)
             item = result.scalars().first()
@@ -166,7 +170,7 @@ class InventoryService:
     async def release_reserved_stock(
             db: AsyncSession,
             reference_id: str,
-            original_reference_type: str,
+            original_reference_types: List[str],
             new_reference_type: str,
             operator_id: Optional[int] = None,
             notes: Optional[str] = None
@@ -176,7 +180,7 @@ class InventoryService:
         此方法不处理事务，应由调用方统一管理
         :param db: 数据库会话
         :param reference_id: 关联ID（如订单号或手动预留ID）
-        :param original_reference_type: 要查找的原始预留记录的类型（如 'order_creation' 或 'reserve'）
+        :param original_reference_types: 要查找的原始预留记录的类型列表（如 ['order_creation', 'seckill_order_creation']）
         :param new_reference_type: 新创建的释放流水的类型（如 'order_cancellation' 或 'manual_release'）
         :param operator_id: 操作员ID
         :param notes: 备注
@@ -185,7 +189,7 @@ class InventoryService:
         query = select(InventoryTransaction).where(
             and_(
                 InventoryTransaction.reference_id == reference_id,
-                InventoryTransaction.reference_type == original_reference_type,
+                InventoryTransaction.reference_type.in_(original_reference_types),
                 InventoryTransaction.transaction_type == InventoryTransactionType.RESERVE
             )
         )
@@ -194,7 +198,7 @@ class InventoryService:
 
         if not reserve_transactions:
             logging.warning(
-                f"尝试为(ref_id={reference_id}, ref_type={original_reference_type})释放库存，但未找到任何预留记录。")
+                f"尝试为(ref_id={reference_id}, ref_types={original_reference_types})释放库存，但未找到任何预留记录。")
             return
 
         for transaction in reserve_transactions:
@@ -220,7 +224,7 @@ class InventoryService:
             db.add(release_transaction)
 
         logging.info(
-            f"已准备为(ref_id={reference_id}, ref_type={original_reference_type})释放 {len(reserve_transactions)} 笔库存。")
+            f"已准备为(ref_id={reference_id}, ref_types={original_reference_types})释放 {len(reserve_transactions)} 笔库存。")
 
     @staticmethod
     async def confirm_stock_out(
@@ -667,9 +671,11 @@ class InventoryService:
         """
         # 1. 查找此订单创建时产生的所有预留事务
         query = select(InventoryTransaction).where(
-            InventoryTransaction.reference_id == order_sn,
-            InventoryTransaction.reference_type == "order_creation",
-            InventoryTransaction.transaction_type == InventoryTransactionType.RESERVE
+            and_(
+                InventoryTransaction.reference_id == order_sn,
+                InventoryTransaction.reference_type == "order_creation",
+                InventoryTransaction.transaction_type == InventoryTransactionType.RESERVE
+            )
         )
         result = await db.execute(query)
         reserve_transactions = result.scalars().all()

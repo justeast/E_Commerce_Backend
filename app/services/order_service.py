@@ -341,7 +341,7 @@ class OrderService:
             await inventory_service.release_reserved_stock(
                 db=db,
                 reference_id=order.order_sn,
-                original_reference_type="order_creation",
+                original_reference_types=["order_creation", "seckill_order_creation"],
                 new_reference_type="order_cancellation",
                 operator_id=operator_id,
                 notes=notes

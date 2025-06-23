@@ -35,5 +35,8 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://:123456@localhost:6379/0"
     CELERY_RESULT_BACKEND: str = "redis://:123456@localhost:6379/1"
 
+    # Celery任务
+    CELERY_TASK_CREATE_SECKILL_ORDER: str = "app.tasks.seckill_tasks.create_seckill_order_task"
+
 
 settings = Settings()

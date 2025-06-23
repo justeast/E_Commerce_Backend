@@ -1,11 +1,19 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
+import os
 
 from app.core.config import settings
 
 # 创建异步数据库引擎
 db_url = settings.DATABASE_URL
-engine = create_async_engine(db_url, echo=True)
+
+# 对于 Celery worker，使用 NullPool 来避免线程的事件循环问题
+# 对于主 FastAPI 应用程序，使用默认连接池来提高性能
+if os.environ.get("RUNNING_IN_CELERY") == "true":
+    engine = create_async_engine(db_url, echo=True, poolclass=NullPool)
+else:
+    engine = create_async_engine(db_url, echo=True)
 
 # 创建异步会话工厂
 async_session = sessionmaker(  # type: ignore
