@@ -6,6 +6,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
 from app.models.rbac import user_role
+from app.models.user_profile import UserProfileTag
 
 if TYPE_CHECKING:
     from app.models.rbac import Role
@@ -54,4 +55,10 @@ class User(Base):
 
     browsing_history: Mapped[List["BrowsingHistory"]] = relationship(
         "BrowsingHistory", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    profile_tags: Mapped[List["UserProfileTag"]] = relationship(
+        "UserProfileTag",
+        back_populates="user",
+        cascade="all, delete-orphan",
     )

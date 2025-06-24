@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 from app.api.v1.endpoints import users, auth, rbac, categories, tags, products, attributes, attribute_values, skus, \
     product_reviews, product_search, warehouses, inventory, cart, orders, payment, promotions, coupon, seckill, \
-    user_behavior, recommendations
+    user_behavior, recommendations, user_profile
 
 api_router = APIRouter()
 
@@ -69,3 +69,6 @@ api_router.include_router(user_behavior.router, prefix="/user", tags=["User Beha
 
 # 推荐系统路由
 api_router.include_router(recommendations.router, prefix="/recommendations", tags=["Recommendations"])
+
+# 用户画像路由
+api_router.include_router(user_profile.router, prefix="/user/profile", tags=["User Profile"])

@@ -13,3 +13,4 @@ from app.models.promotion import Promotion  # noqa
 from app.models.coupon import CouponTemplate, UserCoupon  # noqa
 from app.models.seckill import SeckillActivity, SeckillProduct  # noqa
 from app.models.browsing_history import BrowsingHistory  # noqa
+from app.models.user_profile import UserProfileTag  # noqa

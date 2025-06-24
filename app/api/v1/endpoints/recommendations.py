@@ -3,16 +3,19 @@ from collections import defaultdict
 
 from fastapi import APIRouter, Depends, HTTPException
 from redis.asyncio import Redis
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api import deps
 from app.core.redis_client import get_redis_pool
 from app.models.product_attribute import SKU
+from app.models.product import Product
+from app.models.order import OrderItem
 from app.schemas.product_attribute import SKU as SKUSchema
 from app.services.recommendation_service import recommendation_service
 from app.services.user_behavior_service import user_behavior_service
+from app.services.user_profile_service import user_profile_service
 
 router = APIRouter()
 
@@ -73,7 +76,18 @@ async def recommend_for_user(
         redis=redis, user_id=current_user.id, limit=history_limit
     )
     if not recent_ids:
-        return []
+        # 如果没有最近浏览记录(即完全冷启动用户)，推荐热销商品
+        stmt_hot = (
+            select(SKU)
+            .join(OrderItem, OrderItem.sku_id == SKU.id)
+            .group_by(SKU.id)
+            .order_by(func.sum(OrderItem.quantity).desc())
+            .options(selectinload(SKU.attribute_values))
+            .limit(recommend_limit)
+        )
+        result = await db.execute(stmt_hot)
+        hot_skus = result.scalars().all()
+        return hot_skus
 
     # 聚合相似度（简单加权：按相似列表排名反向加分）
     score_map: defaultdict[int, float] = defaultdict(float)
@@ -89,12 +103,34 @@ async def recommend_for_user(
         score_map.pop(sid, None)
 
     if not score_map:
-        return []
+        score_map = {}
 
-    # 取 top-N
-    top_ids = [sid for sid, _ in sorted(
+    # 如果协同过滤不足，使用画像兴趣分类兜底
+    exclude_ids = set(recent_ids)
+    # 排序并截取已有
+    top_ids: List[int] = [sid for sid, _ in sorted(
         score_map.items(), key=lambda kv: kv[1], reverse=True
     )[:recommend_limit]]
+
+    if len(top_ids) < recommend_limit:
+        need = recommend_limit - len(top_ids)
+        tags = await user_profile_service.get_user_tags(
+            db=db, user_id=current_user.id, tag_key="interest_category", limit=3
+        )
+        if tags:
+            cat_ids = [int(t.tag_value) for t in tags]
+            stmt_cat = (
+                select(SKU.id)
+                .join(Product, SKU.product_id == Product.id)
+                .where(
+                    Product.category_id.in_(cat_ids),
+                    SKU.id.not_in(exclude_ids.union(top_ids))
+                )
+                .limit(need)
+            )
+            extra = await db.execute(stmt_cat)
+            extra_ids = [row[0] for row in extra]
+            top_ids.extend(extra_ids)
 
     stmt = (
         select(SKU)
