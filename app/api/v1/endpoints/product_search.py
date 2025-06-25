@@ -20,7 +20,7 @@ class AttributeFilter(BaseModel):
     values: List[str]
 
 
-@router.get("/", response_model=ProductSearchResponse)
+@router.get("/", response_model=ProductSearchResponse, summary="商品搜索")
 async def search_products_api(
         q: Optional[str] = None,
         category_id: Optional[int] = None,
@@ -175,7 +175,7 @@ class SearchRequest(BaseModel):
     attributes: Optional[List[AttributeFilter]] = None
 
 
-@router.post("/advanced", response_model=ProductSearchResponse)
+@router.post("/advanced", response_model=ProductSearchResponse, summary="复杂属性搜索")
 async def search_products_post_api(
         search_request: SearchRequest
 ):
@@ -314,7 +314,7 @@ async def search_products_post_api(
         raise HTTPException(status_code=500, detail=f"搜索失败: {str(e)}")
 
 
-@router.post("/reindex-all", status_code=202)
+@router.post("/reindex-all", status_code=202, summary="重新索引所有商品到Elasticsearch")
 async def reindex_all_products_api(
         db: AsyncSession = Depends(get_db),
         _: User = Depends(has_permission("product_manage"))

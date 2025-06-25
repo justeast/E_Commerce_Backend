@@ -19,7 +19,7 @@ from app.schemas.product import (
 router = APIRouter()
 
 
-@router.get("/", response_model=List[CategorySchema])
+@router.get("/", response_model=List[CategorySchema], summary="获取分类列表")
 async def list_categories(
         skip: int = 0,
         limit: int = 100,
@@ -50,7 +50,7 @@ async def list_categories(
     return categories
 
 
-@router.get("/tree", response_model=List[CategoryTree])
+@router.get("/tree", response_model=List[CategoryTree], summary="获取完整的分类树结构")
 async def get_category_tree(db: AsyncSession = Depends(get_db)):
     """
     获取完整的分类树结构
@@ -69,7 +69,7 @@ async def get_category_tree(db: AsyncSession = Depends(get_db)):
     return categories
 
 
-@router.get("/{category_id}", response_model=CategorySchema)
+@router.get("/{category_id}", response_model=CategorySchema, summary="获取特定分类详情")
 async def get_category(
         category_id: int,
         db: AsyncSession = Depends(get_db),
@@ -92,7 +92,7 @@ async def get_category(
     return category
 
 
-@router.post("/", response_model=CategorySchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=CategorySchema, status_code=status.HTTP_201_CREATED, summary="创建分类")
 async def create_category(
         category: CategoryCreate,
         db: AsyncSession = Depends(get_db),
@@ -129,7 +129,7 @@ async def create_category(
     return db_category
 
 
-@router.put("/{category_id}", response_model=CategorySchema)
+@router.put("/{category_id}", response_model=CategorySchema, summary="更新分类信息")
 async def update_category(
         category_id: int,
         category_update: CategoryUpdate,
@@ -192,7 +192,7 @@ async def update_category(
     return db_category
 
 
-@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除分类")
 async def delete_category(
         category_id: int,
         db: AsyncSession = Depends(get_db),

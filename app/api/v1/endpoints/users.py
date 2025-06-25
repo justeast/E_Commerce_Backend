@@ -12,7 +12,7 @@ from app.schemas.user import UserCreate, UserResponse
 router = APIRouter()
 
 
-@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="用户注册")
 async def create_user(
         user_in: UserCreate, db: AsyncSession = Depends(get_db)
 ) -> User:

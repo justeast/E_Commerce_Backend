@@ -23,7 +23,7 @@ from app.schemas.product_review import (
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ProductReviewSchema])
+@router.get("/", response_model=List[ProductReviewSchema], summary="获取商品评价列表")
 async def list_reviews(
         product_id: Optional[int] = None,
         user_id: Optional[int] = None,
@@ -119,7 +119,7 @@ async def list_reviews(
     return processed_reviews
 
 
-@router.get("/stats", response_model=ProductReviewStats)
+@router.get("/stats", response_model=ProductReviewStats, summary="获取商品评价统计信息")
 async def get_review_stats(
         product_id: int,
         db: AsyncSession = Depends(get_db),
@@ -170,7 +170,7 @@ async def get_review_stats(
     )
 
 
-@router.get("/{review_id}", response_model=ProductReviewSchema)
+@router.get("/{review_id}", response_model=ProductReviewSchema, summary="获取单个评价详情")
 async def get_review(
         review_id: int,
         db: AsyncSession = Depends(get_db),
@@ -204,7 +204,7 @@ async def get_review(
     return review
 
 
-@router.post("/", response_model=ProductReviewSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProductReviewSchema, status_code=status.HTTP_201_CREATED, summary="创建商品评价")
 async def create_review(
         review: ProductReviewCreate,
         db: AsyncSession = Depends(get_db),
@@ -265,7 +265,7 @@ async def create_review(
     return review_with_replies
 
 
-@router.put("/{review_id}", response_model=ProductReviewSchema)
+@router.put("/{review_id}", response_model=ProductReviewSchema, summary="更新商品评价")
 async def update_review(
         review_id: int,
         review_update: ProductReviewUpdate,
@@ -334,7 +334,7 @@ async def update_review(
     return db_review
 
 
-@router.delete("/{review_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{review_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除商品评价")
 async def delete_review(
         review_id: int,
         db: AsyncSession = Depends(get_db),
@@ -371,7 +371,7 @@ async def delete_review(
     return None
 
 
-@router.post("/{review_id}/replies", response_model=ReviewReplySchema, status_code=status.HTTP_201_CREATED)
+@router.post("/{review_id}/replies", response_model=ReviewReplySchema, status_code=status.HTTP_201_CREATED, summary="创建评价回复")
 async def create_reply(
         review_id: int,
         reply: ReviewReplyCreate,
@@ -430,7 +430,7 @@ async def create_reply(
     return db_reply
 
 
-@router.put("/replies/{reply_id}", response_model=ReviewReplySchema)
+@router.put("/replies/{reply_id}", response_model=ReviewReplySchema, summary="更新评价回复")
 async def update_reply(
         reply_id: int,
         reply_update: ReviewReplyUpdate,
@@ -477,7 +477,7 @@ async def update_reply(
     return db_reply
 
 
-@router.delete("/replies/{reply_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/replies/{reply_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除评价回复")
 async def delete_reply(
         reply_id: int,
         db: AsyncSession = Depends(get_db),

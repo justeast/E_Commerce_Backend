@@ -13,7 +13,7 @@ from app.schemas.product import Tag as TagSchema, TagCreate, TagUpdate
 router = APIRouter()
 
 
-@router.get("/", response_model=List[TagSchema])
+@router.get("/", response_model=List[TagSchema], summary="获取标签列表")
 async def list_tags(
         skip: int = 0,
         limit: int = 100,
@@ -28,7 +28,7 @@ async def list_tags(
     return tags
 
 
-@router.get("/{tag_id}", response_model=TagSchema)
+@router.get("/{tag_id}", response_model=TagSchema, summary="获取特定标签详情")
 async def get_tag(
         tag_id: int,
         db: AsyncSession = Depends(get_db),
@@ -45,7 +45,7 @@ async def get_tag(
     return tag
 
 
-@router.post("/", response_model=TagSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=TagSchema, status_code=status.HTTP_201_CREATED, summary="创建标签")
 async def create_tag(
         tag: TagCreate,
         db: AsyncSession = Depends(get_db),
@@ -72,7 +72,7 @@ async def create_tag(
     return db_tag
 
 
-@router.put("/{tag_id}", response_model=TagSchema)
+@router.put("/{tag_id}", response_model=TagSchema, summary="更新标签信息")
 async def update_tag(
         tag_id: int,
         tag_update: TagUpdate,
@@ -109,7 +109,7 @@ async def update_tag(
     return db_tag
 
 
-@router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{tag_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除标签")
 async def delete_tag(
         tag_id: int,
         db: AsyncSession = Depends(get_db),

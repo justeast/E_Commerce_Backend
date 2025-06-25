@@ -1,0 +1,17 @@
+sqlalchemy==2.0.41
+fastapi==0.115.12
+pyjwt==2.10.1
+pydantic==2.11.3
+redis==5.2.1
+pydantic-settings==2.9.1
+passlib==1.7.4
+celery==5.5.3
+aio-pika==9.5.5
+aiosmtplib==4.0.1
+aiomysql==0.2.0
+alipay_sdk_python==3.7.603
+jinja2==3.1.6
+python-dotenv==1.1.0
+elasticsearch==8.18.1
+alembic==1.16.1
+

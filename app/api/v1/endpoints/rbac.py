@@ -24,7 +24,7 @@ router = APIRouter()
 
 
 # 权限相关端点
-@router.get("/permissions", response_model=List[PermissionSchema])
+@router.get("/permissions", response_model=List[PermissionSchema], summary="获取权限列表")
 async def list_permissions(
         skip: int = 0,
         limit: int = 100,
@@ -39,7 +39,7 @@ async def list_permissions(
     return permissions
 
 
-@router.post("/permissions", response_model=PermissionSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/permissions", response_model=PermissionSchema, status_code=status.HTTP_201_CREATED, summary="创建权限")
 async def create_permission(
         permission: PermissionCreate,
         db: AsyncSession = Depends(get_db),
@@ -73,7 +73,7 @@ async def create_permission(
     return db_permission
 
 
-@router.get("/permissions/{permission_id}", response_model=PermissionSchema)
+@router.get("/permissions/{permission_id}", response_model=PermissionSchema, summary="获取特定权限详情")
 async def get_permission(
         permission_id: int,
         db: AsyncSession = Depends(get_db),
@@ -89,7 +89,7 @@ async def get_permission(
     return permission
 
 
-@router.put("/permissions/{permission_id}", response_model=PermissionSchema)
+@router.put("/permissions/{permission_id}", response_model=PermissionSchema, summary="更新权限信息")
 async def update_permission(
         permission_id: int,
         permission_update: PermissionUpdate,
@@ -114,7 +114,7 @@ async def update_permission(
     return db_permission
 
 
-@router.delete("/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除权限")
 async def delete_permission(
         permission_id: int,
         db: AsyncSession = Depends(get_db),
@@ -134,7 +134,7 @@ async def delete_permission(
 
 
 # 角色相关端点
-@router.get("/roles", response_model=List[RoleSchema])
+@router.get("/roles", response_model=List[RoleSchema], summary="获取角色列表")
 async def list_roles(
         skip: int = 0,
         limit: int = 100,
@@ -153,7 +153,7 @@ async def list_roles(
     return roles
 
 
-@router.post("/roles", response_model=RoleSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/roles", response_model=RoleSchema, status_code=status.HTTP_201_CREATED, summary="创建角色")
 async def create_role(
         role: RoleCreate,
         db: AsyncSession = Depends(get_db),
@@ -194,7 +194,7 @@ async def create_role(
     return db_role
 
 
-@router.get("/roles/{role_id}", response_model=RoleSchema)
+@router.get("/roles/{role_id}", response_model=RoleSchema, summary="获取特定角色详情")
 async def get_role(
         role_id: int,
         db: AsyncSession = Depends(get_db),
@@ -213,7 +213,7 @@ async def get_role(
     return role
 
 
-@router.put("/roles/{role_id}", response_model=RoleSchema)
+@router.put("/roles/{role_id}", response_model=RoleSchema, summary="更新角色信息")
 async def update_role(
         role_id: int,
         role_update: RoleUpdate,
@@ -253,7 +253,7 @@ async def update_role(
     return db_role
 
 
-@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除角色")
 async def delete_role(
         role_id: int,
         db: AsyncSession = Depends(get_db),
@@ -273,7 +273,7 @@ async def delete_role(
 
 
 # 用户角色相关端点
-@router.get("/users/{user_id}/roles", response_model=List[RoleSchema])
+@router.get("/users/{user_id}/roles", response_model=List[RoleSchema], summary="获取用户的角色列表")
 async def get_user_roles(
         user_id: int,
         db: AsyncSession = Depends(get_db),
@@ -297,7 +297,7 @@ async def get_user_roles(
     return user.roles
 
 
-@router.get("/users/roles", response_model=List[UserWithRoles])
+@router.get("/users/roles", response_model=List[UserWithRoles], summary="获取所有用户及其角色列表")
 async def list_users_with_roles(
         skip: int = 0,
         limit: int = 100,
@@ -331,7 +331,7 @@ async def list_users_with_roles(
     return user_role_list
 
 
-@router.put("/users/{user_id}/roles", status_code=status.HTTP_200_OK)
+@router.put("/users/{user_id}/roles", status_code=status.HTTP_200_OK, summary="更新用户的角色")
 async def update_user_roles(
         user_id: int,
         user_role_update: UserRoleUpdate,

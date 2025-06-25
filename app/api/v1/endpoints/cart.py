@@ -9,7 +9,7 @@ from app.services.cart_service import cart_service
 router = APIRouter()
 
 
-@router.get("/", response_model=Cart)
+@router.get("/", response_model=Cart, summary="获取当前用户的购物车")
 async def read_user_cart(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_active_user),
@@ -19,7 +19,7 @@ async def read_user_cart(
     return cart
 
 
-@router.post("/items", response_model=Cart)
+@router.post("/items", response_model=Cart, summary="向购物车中添加商品")
 async def add_item_to_cart(
         *,
         db: AsyncSession = Depends(get_db),
@@ -34,7 +34,7 @@ async def add_item_to_cart(
     return cart
 
 
-@router.put("/items/{item_id}", response_model=Cart)
+@router.put("/items/{item_id}", response_model=Cart, summary="更新购物车中商品的数量")
 async def update_cart_item(
         *,
         db: AsyncSession = Depends(get_db),
@@ -54,7 +54,7 @@ async def update_cart_item(
     return cart
 
 
-@router.delete("/items/{item_id}", response_model=Cart)
+@router.delete("/items/{item_id}", response_model=Cart, summary="从购物车中移除商品")
 async def remove_cart_item(
         *,
         db: AsyncSession = Depends(get_db),
@@ -68,7 +68,7 @@ async def remove_cart_item(
     return cart
 
 
-@router.delete("/", response_model=Cart, status_code=status.HTTP_200_OK)
+@router.delete("/", response_model=Cart, status_code=status.HTTP_200_OK, summary="清空购物车")
 async def clear_user_cart(
         db: AsyncSession = Depends(get_db),
         current_user: User = Depends(get_current_active_user),

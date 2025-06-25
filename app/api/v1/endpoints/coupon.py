@@ -24,7 +24,7 @@ from app.services.coupon_service import (
 router = APIRouter()
 
 
-@router.post("/templates/", response_model=CouponTemplate, status_code=201)
+@router.post("/templates/", response_model=CouponTemplate, status_code=201, summary="创建优惠券模板")
 async def create_coupon_template(
         *,
         db: AsyncSession = Depends(get_db),
@@ -38,7 +38,7 @@ async def create_coupon_template(
     return template
 
 
-@router.get("/templates/", response_model=CouponTemplateListResponse)
+@router.get("/templates/", response_model=CouponTemplateListResponse, summary="获取所有优惠券模板")
 async def read_coupon_templates(
         db: AsyncSession = Depends(get_db),
         page: int = 1,
@@ -52,7 +52,7 @@ async def read_coupon_templates(
     return CouponTemplateListResponse(items=templates, total=total)
 
 
-@router.put("/templates/{template_id}", response_model=CouponTemplate)
+@router.put("/templates/{template_id}", response_model=CouponTemplate, summary="更新优惠券模板信息")
 async def update_coupon_template(
         *,
         db: AsyncSession = Depends(get_db),
@@ -76,7 +76,7 @@ async def update_coupon_template(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除优惠券模板")
 async def delete_coupon_template(
         template_id: int,
         db: AsyncSession = Depends(get_db),
@@ -94,7 +94,7 @@ async def delete_coupon_template(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/claim/{template_id}", response_model=UserCoupon)
+@router.post("/claim/{template_id}", response_model=UserCoupon, summary="领取优惠券")
 async def claim_coupon_for_user(
         *,
         db: AsyncSession = Depends(get_db),

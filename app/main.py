@@ -47,13 +47,13 @@ app.add_middleware(
 
 
 # 根路由
-@app.get("/")
+@app.get("/",summary="根路由")
 async def root():
     return {"message": "Welcome to the Ecommerce API!"}
 
 
 # 健康检查
-@app.get("/health")
+@app.get("/health", summary="路由健康检查")
 async def health_check():
     return {"status": "healthy"}
 

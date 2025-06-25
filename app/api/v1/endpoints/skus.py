@@ -21,7 +21,7 @@ from app.schemas.product_attribute import (
 router = APIRouter()
 
 
-@router.get("/", response_model=List[SKUSchema])
+@router.get("/", response_model=List[SKUSchema], summary="获取SKU列表")
 async def list_skus(
         skip: int = 0,
         limit: int = 100,
@@ -42,7 +42,7 @@ async def list_skus(
     return skus
 
 
-@router.get("/{sku_id}", response_model=SKUSchema)
+@router.get("/{sku_id}", response_model=SKUSchema, summary="获取特定SKU详情")
 async def get_sku(
         sku_id: int,
         db: AsyncSession = Depends(get_db),
@@ -61,7 +61,7 @@ async def get_sku(
     return sku
 
 
-@router.post("/", response_model=SKUSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=SKUSchema, status_code=status.HTTP_201_CREATED, summary="创建SKU")
 async def create_sku(
         sku_create: SKUCreate,
         db: AsyncSession = Depends(get_db),
@@ -107,7 +107,7 @@ async def create_sku(
     return db_sku_with_values
 
 
-@router.put("/{sku_id}", response_model=SKUSchema)
+@router.put("/{sku_id}", response_model=SKUSchema, summary="更新SKU信息")
 async def update_sku(
         sku_id: int,
         sku_update: SKUUpdate,
@@ -163,7 +163,7 @@ async def update_sku(
     return db_sku_with_values
 
 
-@router.delete("/{sku_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{sku_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除SKU")
 async def delete_sku(
         sku_id: int,
         db: AsyncSession = Depends(get_db),
@@ -185,7 +185,7 @@ async def delete_sku(
     return None
 
 
-@router.post("/batch-delete", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/batch-delete", status_code=status.HTTP_204_NO_CONTENT, summary="批量删除SKU")
 async def batch_delete_skus(
         sku_ids: List[int],
         db: AsyncSession = Depends(get_db),
@@ -224,7 +224,7 @@ async def batch_delete_skus(
     return None
 
 
-@router.post("/generate", response_model=List[SKUSchema], status_code=status.HTTP_201_CREATED)
+@router.post("/generate", response_model=List[SKUSchema], status_code=status.HTTP_201_CREATED, summary="根据属性组合批量生成SKU")
 async def generate_skus(
         request: GenerateSKUsRequest,
         db: AsyncSession = Depends(get_db),

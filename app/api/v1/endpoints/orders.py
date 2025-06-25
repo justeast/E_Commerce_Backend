@@ -12,7 +12,7 @@ from app.services.payment_service import alipay_service
 router = APIRouter()
 
 
-@router.post("/", response_model=Order, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=Order, status_code=status.HTTP_201_CREATED, summary="从购物车创建新订单(全量下单)")
 async def create_order(
         *,
         db: AsyncSession = Depends(get_db),
@@ -29,7 +29,7 @@ async def create_order(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.post("/from-selected-items/", response_model=Order, status_code=status.HTTP_201_CREATED)
+@router.post("/from-selected-items/", response_model=Order, status_code=status.HTTP_201_CREATED, summary="从购物车中选择商品创建新订单")
 async def create_order_from_selected_items(
         *,
         db: AsyncSession = Depends(get_db),
@@ -50,7 +50,7 @@ async def create_order_from_selected_items(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
-@router.get("/{order_sn}", response_model=Order)
+@router.get("/{order_sn}", response_model=Order, summary="获取单个订单的详细信息")
 async def get_order_details(
         order_sn: str,
         db: AsyncSession = Depends(get_db),
@@ -71,7 +71,7 @@ class PaymentURLResponse(BaseModel):
     payment_url: str
 
 
-@router.post("/{order_sn}/pay", response_model=PaymentURLResponse)
+@router.post("/{order_sn}/pay", response_model=PaymentURLResponse, summary="为指定订单请求支付")
 async def request_payment_for_order(
         order_sn: str,
         db: AsyncSession = Depends(get_db),
@@ -116,7 +116,7 @@ async def request_payment_for_order(
         )
 
 
-@router.post("/{order_sn}/cancel", response_model=Order)
+@router.post("/{order_sn}/cancel", response_model=Order, summary="用户主动取消一个“待支付”的订单")
 async def cancel_order(
         order_sn: str,
         db: AsyncSession = Depends(get_db),

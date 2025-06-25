@@ -19,7 +19,7 @@ from app.schemas.product_attribute import (
 router = APIRouter()
 
 
-@router.get("/", response_model=List[AttributeValueWithAttribute])
+@router.get("/", response_model=List[AttributeValueWithAttribute], summary="获取属性值列表")
 async def list_attribute_values(
         skip: int = 0,
         limit: int = 100,
@@ -59,7 +59,7 @@ async def list_attribute_values(
     return attribute_values
 
 
-@router.get("/{value_id}", response_model=AttributeValueWithAttribute)
+@router.get("/{value_id}", response_model=AttributeValueWithAttribute, summary="获取特定属性值详情")
 async def get_attribute_value(
         value_id: int,
         db: AsyncSession = Depends(get_db),
@@ -92,7 +92,7 @@ async def get_attribute_value(
     return attribute_value
 
 
-@router.post("/", response_model=AttributeValueSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=AttributeValueSchema, status_code=status.HTTP_201_CREATED, summary="创建属性值")
 async def create_attribute_value(
         attribute_value: AttributeValueCreate,
         db: AsyncSession = Depends(get_db),
@@ -117,7 +117,7 @@ async def create_attribute_value(
     return db_attribute_value
 
 
-@router.put("/{value_id}", response_model=AttributeValueSchema)
+@router.put("/{value_id}", response_model=AttributeValueSchema, summary="更新属性值")
 async def update_attribute_value(
         value_id: int,
         attribute_value_update: AttributeValueUpdate,
@@ -167,7 +167,7 @@ async def update_attribute_value(
     return db_attribute_value
 
 
-@router.delete("/{value_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{value_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除属性值")
 async def delete_attribute_value(
         value_id: int,
         db: AsyncSession = Depends(get_db),

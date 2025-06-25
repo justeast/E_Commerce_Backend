@@ -23,7 +23,7 @@ from app.schemas.auth import Token, Login, RefreshToken
 router = APIRouter()
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Token, summary="用户登录")
 async def login_for_access_token(
         form_data: Login, db: AsyncSession = Depends(get_db)
 ):
@@ -58,7 +58,7 @@ async def login_for_access_token(
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer"}
 
 
-@router.post("/refresh", response_model=Token)
+@router.post("/refresh", response_model=Token, summary="刷新访问token")
 async def refresh_access_token(
         refresh_token_data: RefreshToken,
         db: AsyncSession = Depends(get_db),
@@ -130,7 +130,7 @@ async def refresh_access_token(
         )
 
 
-@router.post("/logout", status_code=status.HTTP_200_OK)
+@router.post("/logout", status_code=status.HTTP_200_OK, summary="用户退出登录")
 async def logout(
         authorization: Optional[str] = Header(None),
         refresh_token: Optional[RefreshToken] = None,

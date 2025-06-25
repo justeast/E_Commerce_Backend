@@ -36,7 +36,7 @@ from app.utils.redis_lock import RedisLock
 router = APIRouter()
 
 
-@router.post("/items", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/items", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED, summary="创建库存项")
 async def create_inventory_item(
         *,
         db: AsyncSession = Depends(get_db),
@@ -132,7 +132,7 @@ async def create_inventory_item(
     )
 
 
-@router.get("/items/{item_id}", response_model=InventoryItemResponse)
+@router.get("/items/{item_id}", response_model=InventoryItemResponse, summary="获取单个库存项")
 async def get_inventory_item(
         *,
         db: AsyncSession = Depends(get_db),
@@ -176,7 +176,7 @@ async def get_inventory_item(
     )
 
 
-@router.get("/items", response_model=InventoryItemsResponse)
+@router.get("/items", response_model=InventoryItemsResponse, summary="列出库存项")
 async def list_inventory_items(
         *,
         db: AsyncSession = Depends(get_db),
@@ -265,7 +265,7 @@ async def list_inventory_items(
     )
 
 
-@router.put("/items/{item_id}", response_model=InventoryItemResponse)
+@router.put("/items/{item_id}", response_model=InventoryItemResponse, summary="更新库存项")
 async def update_inventory_item(
         *,
         db: AsyncSession = Depends(get_db),
@@ -320,7 +320,7 @@ async def update_inventory_item(
     )
 
 
-@router.delete("/items/{item_id}", response_model=InventoryResponse)
+@router.delete("/items/{item_id}", response_model=InventoryResponse, summary="删除库存项")
 async def delete_inventory_item(
         *,
         db: AsyncSession = Depends(get_db),
@@ -351,7 +351,7 @@ async def delete_inventory_item(
     )
 
 
-@router.get("/transactions", response_model=InventoryTransactionsResponse)
+@router.get("/transactions", response_model=InventoryTransactionsResponse, summary="获取库存交易记录")
 async def list_inventory_transactions(
         *,
         db: AsyncSession = Depends(get_db),
@@ -418,7 +418,7 @@ async def list_inventory_transactions(
     )
 
 
-@router.post("/stock/in", response_model=InventoryResponse)
+@router.post("/stock/in", response_model=InventoryResponse, summary="入库")
 async def stock_in(
         *,
         db: AsyncSession = Depends(get_db),
@@ -462,7 +462,7 @@ async def stock_in(
         )
 
 
-@router.post("/stock/reserve", response_model=InventoryResponse)
+@router.post("/stock/reserve", response_model=InventoryResponse, summary="预留库存")
 async def reserve_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -508,7 +508,7 @@ async def reserve_stock(
         await lock.release()
 
 
-@router.post("/stock/release", response_model=InventoryResponse)
+@router.post("/stock/release", response_model=InventoryResponse, summary="手动释放预留库存")
 async def release_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -539,7 +539,7 @@ async def release_stock(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"释放库存时发生内部错误: {e}")
 
 
-@router.post("/stock/confirm", response_model=InventoryResponse)
+@router.post("/stock/confirm", response_model=InventoryResponse, summary="确认出库")
 async def confirm_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -587,7 +587,7 @@ async def confirm_stock(
         )
 
 
-@router.post("/stock/adjust", response_model=InventoryResponse)
+@router.post("/stock/adjust", response_model=InventoryResponse, summary="库存调整")
 async def adjust_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -634,7 +634,7 @@ async def adjust_stock(
         )
 
 
-@router.post("/stock/bulk-adjust", response_model=InventoryResponse)
+@router.post("/stock/bulk-adjust", response_model=InventoryResponse, summary="批量库存调整")
 async def bulk_adjust_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -685,7 +685,7 @@ async def bulk_adjust_stock(
         )
 
 
-@router.post("/stock/transfer", response_model=InventoryResponse)
+@router.post("/stock/transfer", response_model=InventoryResponse, summary="库存调拨")
 async def transfer_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -728,7 +728,7 @@ async def transfer_stock(
         )
 
 
-@router.post("/stock/bulk-transfer", response_model=InventoryResponse)
+@router.post("/stock/bulk-transfer", response_model=InventoryResponse, summary="批量调拨库存")
 async def bulk_transfer_stock(
         *,
         db: AsyncSession = Depends(get_db),
@@ -776,7 +776,7 @@ async def bulk_transfer_stock(
         )
 
 
-@router.get("/low-stock-alerts", response_model=LowStockAlertResponse)
+@router.get("/low-stock-alerts", response_model=LowStockAlertResponse, summary="手动获取低库存预警")
 async def get_low_stock_alerts(
         *,
         db: AsyncSession = Depends(get_db),

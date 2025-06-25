@@ -19,7 +19,7 @@ from app.utils.product_indexer import index_single_product, update_product_in_in
 router = APIRouter()
 
 
-@router.get("/", response_model=List[ProductSchema])
+@router.get("/", response_model=List[ProductSchema], summary="获取商品列表")
 async def list_products(
         skip: int = 0,
         limit: int = 100,
@@ -70,7 +70,7 @@ async def list_products(
     return products
 
 
-@router.get("/{product_id}", response_model=ProductSchema)
+@router.get("/{product_id}", response_model=ProductSchema, summary="获取特定商品详情")
 async def get_product(
         product_id: int,
         db: AsyncSession = Depends(get_db),
@@ -93,7 +93,7 @@ async def get_product(
     return product
 
 
-@router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=ProductSchema, status_code=status.HTTP_201_CREATED, summary="创建商品")
 async def create_product(
         product: ProductCreate,
         db: AsyncSession = Depends(get_db),
@@ -152,7 +152,7 @@ async def create_product(
     return db_product
 
 
-@router.put("/{product_id}", response_model=ProductSchema)
+@router.put("/{product_id}", response_model=ProductSchema, summary="更新商品信息")
 async def update_product(
         product_id: int,
         product_update: ProductUpdate,
@@ -225,7 +225,7 @@ async def update_product(
     return db_product
 
 
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT, summary="删除商品")
 async def delete_product(
         product_id: int,
         db: AsyncSession = Depends(get_db),

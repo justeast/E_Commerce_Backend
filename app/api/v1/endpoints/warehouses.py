@@ -17,7 +17,7 @@ from app.schemas.inventory import (
 router = APIRouter()
 
 
-@router.post("/", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=WarehouseResponse, status_code=status.HTTP_201_CREATED, summary="创建仓库")
 async def create_warehouse(
         *,
         db: AsyncSession = Depends(get_db),
@@ -52,7 +52,7 @@ async def create_warehouse(
     )
 
 
-@router.get("/{warehouse_id}", response_model=WarehouseResponse)
+@router.get("/{warehouse_id}", response_model=WarehouseResponse, summary="获取单个仓库详情")
 async def get_warehouse(
         *,
         db: AsyncSession = Depends(get_db),
@@ -80,7 +80,7 @@ async def get_warehouse(
     )
 
 
-@router.get("/", response_model=WarehousesResponse)
+@router.get("/", response_model=WarehousesResponse, summary="获取所有仓库")
 async def list_warehouses(
         *,
         db: AsyncSession = Depends(get_db),
@@ -123,7 +123,7 @@ async def list_warehouses(
     )
 
 
-@router.put("/{warehouse_id}", response_model=WarehouseResponse)
+@router.put("/{warehouse_id}", response_model=WarehouseResponse, summary="更新仓库信息")
 async def update_warehouse(
         *,
         db: AsyncSession = Depends(get_db),
@@ -176,7 +176,7 @@ async def update_warehouse(
     )
 
 
-@router.delete("/{warehouse_id}", response_model=WarehouseResponse)
+@router.delete("/{warehouse_id}", response_model=WarehouseResponse, summary="删除仓库")
 async def delete_warehouse(
         *,
         db: AsyncSession = Depends(get_db),
