@@ -6,6 +6,7 @@ redis==5.2.1
 pydantic-settings==2.9.1
 passlib==1.7.4
 celery==5.5.3
+cryptography==45.0.4
 aio-pika==9.5.5
 aiosmtplib==4.0.1
 aiomysql==0.2.0
